@@ -44,7 +44,7 @@
                 {% for detections in species.hourly_detections[:current_hour + 1] %}
                     <td>
                         {% if detections is not none and detections|int > 0 %}
-                            {{ detections }}
+                            {{ detections|int }}
                         {% endif %}
                     </td>
                 {% endfor %}
