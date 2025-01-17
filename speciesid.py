@@ -14,9 +14,12 @@ from webui import app
 import sys
 import json
 import requests
+import aiohttp
+import asyncio
 from PIL import Image, ImageOps
 from io import BytesIO
 from queries import get_common_name
+from concurrent.futures import ThreadPoolExecutor
 
 classifier = None
 config = None
@@ -96,7 +99,18 @@ def set_sublabel(frigate_url, frigate_event, sublabel):
         print(f"Error communicating with Frigate API: {str(e)}", flush=True)
 
 
+async def notify_websocket(detection_data):
+    """Send detection to WebSocket server"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post('http://localhost:8765/notify', json=detection_data) as response:
+                if response.status != 200:
+                    print(f"Failed to notify WebSocket server: {response.status}", flush=True)
+    except Exception as e:
+        print(f"Error notifying WebSocket server: {str(e)}", flush=True)
+
 def on_message(client, userdata, message):
+    loop = asyncio.new_event_loop()
     conn = sqlite3.connect(DBPATH)
 
     global firstmessage
@@ -176,6 +190,18 @@ def on_message(client, userdata, message):
                                 """, (formatted_start_time, index, score, display_name, category_name, frigate_event, after_data['camera']))
                             set_sublabel(frigate_url, frigate_event, get_common_name(display_name))
                             print("Successfully stored new detection", flush=True)
+                            
+                            # Prepare detection data for WebSocket
+                            detection_data = {
+                                "common_name": get_common_name(display_name),
+                                "scientific_name": display_name,
+                                "score": score,
+                                "frigate_event": frigate_event,
+                                "timestamp": formatted_start_time
+                            }
+                            
+                            # Send to WebSocket server asynchronously
+                            loop.run_until_complete(notify_websocket(detection_data))
                         else:
                             print("\nChecking existing detection...", flush=True)
                             existing_score = result[3]
@@ -189,6 +215,8 @@ def on_message(client, userdata, message):
                                 set_sublabel(frigate_url, frigate_event, get_common_name(display_name))
                             else:
                                 print(f"Keeping existing record (new score {score:.2f} <= old score {existing_score:.2f})", flush=True)
+                            
+                            loop.close()
 
                         conn.commit()
                         print("Database transaction complete", flush=True)

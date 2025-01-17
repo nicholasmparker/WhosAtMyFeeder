@@ -16,6 +16,26 @@
 
           <!-- Right side -->
           <div class="flex items-center">
+            <!-- Connection Status -->
+            <div class="mr-4">
+              <span 
+                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                :class="{
+                  'bg-green-100 text-green-800': webSocketStore.isConnected,
+                  'bg-red-100 text-red-800': !webSocketStore.isConnected
+                }"
+              >
+                <span 
+                  class="w-2 h-2 mr-1.5 rounded-full"
+                  :class="{
+                    'bg-green-400': webSocketStore.isConnected,
+                    'bg-red-400': !webSocketStore.isConnected
+                  }"
+                ></span>
+                {{ webSocketStore.isConnected ? 'Connected' : 'Disconnected' }}
+              </span>
+            </div>
+
             <!-- Date Picker -->
             <div class="relative">
               <input 
@@ -85,18 +105,19 @@
     </main>
 
     <!-- Toast Notifications -->
-    <div class="fixed bottom-0 right-0 p-6 space-y-4">
-      <!-- Add toast notifications here -->
-    </div>
+    <ToastNotifications />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
+import { useWebSocketStore } from '@/stores/websocket'
+import ToastNotifications from '@/components/ToastNotifications.vue'
 import axios from 'axios'
 
 const router = useRouter()
+const webSocketStore = useWebSocketStore()
 const currentDate = ref(new Date().toISOString().split('T')[0])
 const earliestDate = ref(currentDate.value)
 const isOpen = ref(false)
@@ -114,5 +135,13 @@ onMounted(async () => {
   } catch (error) {
     console.error('Failed to fetch earliest detection date:', error)
   }
+
+  // Initialize WebSocket connection
+  webSocketStore.connect()
+})
+
+onBeforeUnmount(() => {
+  // Clean up WebSocket connection
+  webSocketStore.disconnect()
 })
 </script>

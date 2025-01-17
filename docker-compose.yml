@@ -12,6 +12,7 @@ services:
     ports:
       - 7766:7766  # Flask backend
       - 5173:5173  # Vite dev server
+      - 8765:8765  # WebSocket server
     environment:
       - TZ=America/New_York
       - FLASK_ENV=development
