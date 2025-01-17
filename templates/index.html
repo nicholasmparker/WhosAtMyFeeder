@@ -11,32 +11,9 @@
 {% endblock %}
 
 {% block content %}
-    <h2>Recent Detections</h2>
-    <table class="table">
-        <thead>
-        <tr>
-            <th scope="col">Detection Time</th>
-            <th scope="col">Common Name</th>
-            <th scope="col">Confidence</th>
-            <th scope="col">Thumbnail</th>
-        </tr>
-        </thead>
-        <tbody>
-        {% for detection in recent_detections %}
-            <tr>
-                <td>{{ detection.detection_time }}</td>
-                <td>{{ detection.common_name }}</td>
-                <td>{{ '%.2f'|format(detection.score) }}</td>
-                <td>
-                    <img src="{{ url_for('frigate_thumbnail', frigate_event=detection.frigate_event) }}" alt="Thumbnail"
-     width="100" height="auto" class="thumbnail"
-     onload="checkTransparentImage(this)"
-     onclick="showSnapshot('{{ url_for('frigate_snapshot', frigate_event=detection.frigate_event) }}', '{{ url_for('frigate_clip', frigate_event=detection.frigate_event) }}')"/>
-                </td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+    <div id="app">
+        <recent-detections :recent-detections="{{ recent_detections | tojson }}"></recent-detections>
+    </div>
 
     <h2>Detection Summary</h2>
     <table class="table">
@@ -80,6 +57,17 @@
 {% endblock %}
 
 {% block scripts %}
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <script type="module">
+        import RecentDetections from '/static/js/components/RecentDetections.vue';
+
+        new Vue({
+            el: '#app',
+            components: {
+                'recent-detections': RecentDetections
+            }
+        });
+    </script>
     <script>
         function navigateToDailySummary(input) {
             const selectedDate = input.value;
