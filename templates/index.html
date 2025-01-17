@@ -45,6 +45,8 @@
                     <td>
                         {% if detections is not none and detections|int > 0 %}
                             {{ detections|int }}
+                        {% else %}
+                            0
                         {% endif %}
                     </td>
                 {% endfor %}
