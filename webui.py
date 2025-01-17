@@ -29,6 +29,7 @@ def index():
     date_str = today.strftime('%Y-%m-%d')
     earliest_date = get_earliest_detection_date()
     recent_records = recent_detections(5)
+    recent_records = [dict(record) for record in recent_records]  # Ensure data is JSON serializable
     daily_summary = get_daily_summary(today)
     return render_template('index.html', recent_detections=recent_records, daily_summary=daily_summary,
                            current_hour=today.hour, date=date_str, earliest_date=earliest_date)

@@ -12,7 +12,7 @@
 
 {% block content %}
     <div id="app">
-        <recent-detections :recent-detections="{{ recent_detections | tojson }}"></recent-detections>
+        <recent-detections :recent-detections='{{ recent_detections | tojson }}'></recent-detections>
     </div>
 
     <h2>Detection Summary</h2>
