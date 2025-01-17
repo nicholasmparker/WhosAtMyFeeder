@@ -29,9 +29,34 @@ DBPATH = './data/speciesid.db'
 
 
 def classify(image):
-    tensor_image = vision.TensorImage.create_from_array(image)
-    categories = classifier.classify(tensor_image)
-    return categories.classifications[0].categories
+    print("\nClassification details:", flush=True)
+    print(f"Input array shape: {image.shape}", flush=True)
+    print(f"Input array dtype: {image.dtype}", flush=True)
+    print(f"Input array range: [{image.min()}, {image.max()}]", flush=True)
+    
+    try:
+        print("Creating tensor image...", flush=True)
+        tensor_image = vision.TensorImage.create_from_array(image)
+        print("Tensor image created successfully", flush=True)
+        
+        print("Running TFLite classification...", flush=True)
+        result = classifier.classify(tensor_image)
+        print("TFLite classification completed", flush=True)
+        
+        if not result.classifications:
+            print("Warning: No classifications returned", flush=True)
+            return []
+            
+        if not result.classifications[0].categories:
+            print("Warning: No categories in first classification", flush=True)
+            return []
+            
+        return result.classifications[0].categories
+    except Exception as e:
+        print(f"Error in classify function: {str(e)}", flush=True)
+        import traceback
+        print(traceback.format_exc(), flush=True)
+        raise
 
 
 def on_connect(client, userdata, flags, rc):
@@ -110,8 +135,8 @@ async def notify_websocket(detection_data):
         print(f"Error notifying WebSocket server: {str(e)}", flush=True)
 
 def on_message(client, userdata, message):
-    loop = asyncio.new_event_loop()
     conn = sqlite3.connect(DBPATH)
+    loop = None
 
     global firstmessage
     if not firstmessage:
@@ -146,6 +171,7 @@ def on_message(client, userdata, message):
                 if response.status_code == 200:
                     print("Successfully retrieved snapshot", flush=True)
                     image = Image.open(BytesIO(response.content))
+                    print(f"Original image size: {image.size}", flush=True)
 
                     file_path = "fullsized.jpg"
                     image.save(file_path, format="JPEG")
@@ -153,9 +179,12 @@ def on_message(client, userdata, message):
 
                     max_size = (224, 224)
                     image.thumbnail(max_size)
+                    print(f"After thumbnail: {image.size}", flush=True)
+                    
                     padded_image = ImageOps.expand(image, border=((max_size[0] - image.size[0]) // 2,
                                                                   (max_size[1] - image.size[1]) // 2),
                                                    fill='black')
+                    print(f"After padding: {padded_image.size}", flush=True)
 
                     file_path = "shrunk.jpg"
                     padded_image.save(file_path, format="JPEG")
@@ -163,12 +192,26 @@ def on_message(client, userdata, message):
 
                     np_arr = np.array(padded_image)
                     print("Running classification...", flush=True)
-                    categories = classify(np_arr)
-                    category = categories[0]
-                    index = category.index
-                    score = category.score
-                    display_name = category.display_name
-                    category_name = category.category_name
+                    try:
+                        categories = classify(np_arr)
+                        if not categories:
+                            print("No valid classifications returned", flush=True)
+                            return
+                            
+                        category = categories[0]
+                        index = category.index
+                        score = category.score
+                        display_name = category.display_name
+                        category_name = category.category_name
+                        print(f"Classification completed successfully", flush=True)
+                        print(f"Raw results:", flush=True)
+                        for cat in categories:
+                            print(f"  {cat.display_name}: {cat.score:.4f}", flush=True)
+                    except Exception as e:
+                        print(f"Error during classification: {str(e)}", flush=True)
+                        import traceback
+                        print(traceback.format_exc(), flush=True)
+                        return
 
                     print(f"\nClassification results:", flush=True)
                     print(f"Species: {display_name}", flush=True)
@@ -201,7 +244,15 @@ def on_message(client, userdata, message):
                             }
                             
                             # Send to WebSocket server asynchronously
-                            loop.run_until_complete(notify_websocket(detection_data))
+                            try:
+                                loop = asyncio.new_event_loop()
+                                asyncio.set_event_loop(loop)
+                                loop.run_until_complete(notify_websocket(detection_data))
+                            except Exception as e:
+                                print(f"Error sending WebSocket notification: {str(e)}", flush=True)
+                            finally:
+                                if loop:
+                                    loop.close()
                         else:
                             print("\nChecking existing detection...", flush=True)
                             existing_score = result[3]
@@ -232,7 +283,6 @@ def on_message(client, userdata, message):
         print("Skipping first MQTT message (connection message)", flush=True)
 
     conn.close()
-    loop.close()
 
 
 def setupdb():
@@ -320,13 +370,14 @@ def main():
     base_options = core.BaseOptions(
         file_name=config['classification']['model'], use_coral=False, num_threads=4)
     classification_options = processor.ClassificationOptions(
-        max_results=1, score_threshold=0)
+        max_results=5, score_threshold=config['classification']['threshold'])  # Use threshold from config
     options = vision.ImageClassifierOptions(
         base_options=base_options, classification_options=classification_options)
 
     global classifier
     classifier = vision.ImageClassifier.create_from_options(options)
     print("TFLite model initialized successfully", flush=True)
+    print(f"Classification threshold: {config['classification']['threshold']}", flush=True)
 
     setupdb()
     

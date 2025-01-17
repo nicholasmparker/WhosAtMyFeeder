@@ -142,6 +142,39 @@ This file will be used to jot down notes, ideas, and plans for improving the pro
 - Custom alert configurations
 - Mobile app integration
 
+## Classification Debugging (2025-01-17)
+
+### Recent Changes
+1. Added detailed image processing logging
+   - Original image dimensions
+   - Post-thumbnail dimensions
+   - Post-padding dimensions
+   - Input array shape, dtype, and range
+
+2. Improved TFLite model configuration
+   - Using threshold from config (0.7)
+   - Showing top 5 matches
+   - Added threshold logging at startup
+
+3. Enhanced error handling
+   - Empty classifications check
+   - Empty categories check
+   - Better error tracing
+   - More detailed logging throughout process
+
+### Next Steps
+1. Monitor logs for:
+   - Image preprocessing accuracy
+   - Model input validation
+   - Classification confidence scores
+   - Any error patterns
+
+2. Potential areas to investigate:
+   - Image preprocessing quality
+   - Model input requirements
+   - Confidence threshold tuning
+   - Classification accuracy metrics
+
 ## Technical Debt to Address
 
 High Priority:
