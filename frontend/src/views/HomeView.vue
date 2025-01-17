@@ -15,6 +15,9 @@
     </div>
 
     <template v-else>
+      <!-- Bird Activity Heatmap -->
+      <BirdActivityHeatmap />
+
       <!-- Recent Detections Section -->
       <section class="bg-white rounded-lg shadow-sm overflow-hidden">
         <div v-if="detectionStore.loading" class="p-8">
@@ -60,6 +63,7 @@ import { onMounted, ref } from 'vue'
 import { useDetectionStore } from '@/stores/detection'
 import RecentDetections from '@/components/RecentDetections.vue'
 import DailySummaryTable from '@/components/DailySummaryTable.vue'
+import BirdActivityHeatmap from '@/components/BirdActivityHeatmap.vue'
 
 const detectionStore = useDetectionStore()
 const currentHour = ref(new Date().getHours())
