@@ -215,8 +215,6 @@ def on_message(client, userdata, message):
                                 set_sublabel(frigate_url, frigate_event, get_common_name(display_name))
                             else:
                                 print(f"Keeping existing record (new score {score:.2f} <= old score {existing_score:.2f})", flush=True)
-                            
-                            loop.close()
 
                         conn.commit()
                         print("Database transaction complete", flush=True)
@@ -234,6 +232,7 @@ def on_message(client, userdata, message):
         print("Skipping first MQTT message (connection message)", flush=True)
 
     conn.close()
+    loop.close()
 
 
 def setupdb():
@@ -303,6 +302,11 @@ def run_mqtt_client():
         print(traceback.format_exc(), flush=True)
 
 
+def run_websocket_server():
+    print("\nStarting WebSocket server...", flush=True)
+    import uvicorn
+    uvicorn.run("websocket_server:app", host="0.0.0.0", port=8765)
+
 def main():
     print("\n=== Starting Bird Species Identification System ===", flush=True)
     now = datetime.now()
@@ -329,14 +333,18 @@ def main():
     print("\nStarting multiprocessing...", flush=True)
     flask_process = multiprocessing.Process(target=run_webui)
     mqtt_process = multiprocessing.Process(target=run_mqtt_client)
+    websocket_process = multiprocessing.Process(target=run_websocket_server)
 
     flask_process.start()
     print("Flask process started", flush=True)
     mqtt_process.start()
     print("MQTT process started", flush=True)
+    websocket_process.start()
+    print("WebSocket server started", flush=True)
 
     flask_process.join()
     mqtt_process.join()
+    websocket_process.join()
 
 
 if __name__ == '__main__':
