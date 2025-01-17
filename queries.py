@@ -2,9 +2,8 @@ import sqlite3
 from collections import defaultdict
 from datetime import datetime
 
-DBPATH = './data/speciesid.db'
-NAMEDBPATH = './birdnames.db'
-
+DBPATH = './data/speciesid.db'  # Relative path as in original
+NAMEDBPATH = './birdnames.db'  # Relative path as in original
 
 def get_common_name(scientific_name):
     conn = sqlite3.connect(NAMEDBPATH)

@@ -7,7 +7,24 @@ services:
     volumes:
       - ./config:/config
       - ./data:/data
+      - ./frontend:/app/frontend  # Mount frontend files for development
+      - ./static:/app/static      # Mount static files
     ports:
-      - 7766:7766 #port used by the webserver in the container is defined in config.
+      - 7766:7766  # Flask backend
+      - 5173:5173  # Vite dev server
     environment:
       - TZ=America/New_York
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - VITE_HOST=0.0.0.0
+      - VITE_PORT=5173
+      - HOST=0.0.0.0  # For Vite
+      - CHOKIDAR_USEPOLLING=true  # For hot reload
+    networks:
+      - app_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  app_network:
+    driver: bridge

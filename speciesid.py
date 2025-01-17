@@ -26,60 +26,74 @@ DBPATH = './data/speciesid.db'
 
 
 def classify(image):
-
     tensor_image = vision.TensorImage.create_from_array(image)
-
     categories = classifier.classify(tensor_image)
-
     return categories.classifications[0].categories
 
 
 def on_connect(client, userdata, flags, rc):
-    print("MQTT Connected", flush=True)
-
-    # we are going subscribe to frigate/events and look for bird detections there
-    client.subscribe(config['frigate']['main_topic'] + "/events")
+    rc_codes = {
+        0: "Connection successful",
+        1: "Connection refused - incorrect protocol version",
+        2: "Connection refused - invalid client identifier",
+        3: "Connection refused - server unavailable",
+        4: "Connection refused - bad username or password",
+        5: "Connection refused - not authorized"
+    }
+    status = rc_codes.get(rc, f"Unknown error code: {rc}")
+    print(f"MQTT Connection status: {status}", flush=True)
+    
+    if rc == 0:
+        topic = config['frigate']['main_topic'] + "/events"
+        print(f"Subscribing to MQTT topic: {topic}", flush=True)
+        client.subscribe(topic)
+        print(f"Successfully subscribed to {topic}", flush=True)
 
 
 def on_disconnect(client, userdata, rc):
     if rc != 0:
-        print("Unexpected disconnection, trying to reconnect", flush=True)
+        print(f"Unexpected MQTT disconnection (code {rc}), attempting to reconnect...", flush=True)
         while True:
             try:
+                print("Attempting MQTT reconnection...", flush=True)
                 client.reconnect()
+                print("MQTT reconnection successful!", flush=True)
                 break
             except Exception as e:
-                print(f"Reconnection failed due to {e}, retrying in 60 seconds", flush=True)
+                print(f"MQTT reconnection failed: {str(e)}", flush=True)
+                print("Retrying in 60 seconds...", flush=True)
                 time.sleep(60)
     else:
-        print("Expected disconnection", flush=True)
+        print("Clean MQTT disconnection", flush=True)
 
 
 def set_sublabel(frigate_url, frigate_event, sublabel):
     post_url = frigate_url + "/api/events/" + frigate_event + "/sub_label"
+    print(f"Setting Frigate sublabel at URL: {post_url}", flush=True)
 
     # frigate limits sublabels to 20 characters currently
     if len(sublabel) > 20:
         sublabel = sublabel[:20]
+        print(f"Truncated sublabel to 20 chars: {sublabel}", flush=True)
 
-        # Create the JSON payload
     payload = {
         "subLabel": sublabel
     }
-
-    # Set the headers for the request
     headers = {
         "Content-Type": "application/json"
     }
 
-    # Submit the POST request with the JSON payload
-    response = requests.post(post_url, data=json.dumps(payload), headers=headers)
-
-    # Check for a successful response
-    if response.status_code == 200:
-        print("Sublabel set successfully to: " + sublabel, flush=True)
-    else:
-        print("Failed to set sublabel. Status code:", response.status_code, flush=True)
+    try:
+        print(f"Sending POST request to Frigate API: {post_url}", flush=True)
+        response = requests.post(post_url, data=json.dumps(payload), headers=headers)
+        print(f"Frigate API response status: {response.status_code}", flush=True)
+        
+        if response.status_code == 200:
+            print(f"Successfully set sublabel to: {sublabel}", flush=True)
+        else:
+            print(f"Failed to set sublabel. Status: {response.status_code}, Response: {response.text}", flush=True)
+    except Exception as e:
+        print(f"Error communicating with Frigate API: {str(e)}", flush=True)
 
 
 def on_message(client, userdata, message):
@@ -87,111 +101,115 @@ def on_message(client, userdata, message):
 
     global firstmessage
     if not firstmessage:
+        try:
+            print("\n=== New MQTT Message ===", flush=True)
+            print(f"Topic: {message.topic}", flush=True)
+            
+            payload_dict = json.loads(message.payload)
+            after_data = payload_dict.get('after', {})
+            
+            print(f"Camera: {after_data.get('camera')}", flush=True)
+            print(f"Label: {after_data.get('label')}", flush=True)
 
-        # Convert the MQTT payload to a Python dictionary
-        payload_dict = json.loads(message.payload)
+            if (after_data['camera'] in config['frigate']['camera'] and
+                    after_data['label'] == 'bird'):
 
-        # Extract the 'after' element data and store it in a dictionary
-        after_data = payload_dict.get('after', {})
+                frigate_event = after_data['id']
+                frigate_url = config['frigate']['frigate_url']
+                snapshot_url = frigate_url + "/api/events/" + frigate_event + "/snapshot.jpg"
 
-        if (after_data['camera'] in config['frigate']['camera'] and
-                after_data['label'] == 'bird'):
+                print(f"\nProcessing bird detection:", flush=True)
+                print(f"Event ID: {frigate_event}", flush=True)
+                print(f"Snapshot URL: {snapshot_url}", flush=True)
 
-            frigate_event = after_data['id']
-            frigate_url = config['frigate']['frigate_url']
-            snapshot_url = frigate_url + "/api/events/" + frigate_event + "/snapshot.jpg"
+                params = {
+                    "crop": 1,
+                    "quality": 95
+                }
+                print("Fetching snapshot from Frigate...", flush=True)
+                response = requests.get(snapshot_url, params=params)
 
-            print("Getting image for event: " + frigate_event, flush=True)
-            print("Here's the URL: " + snapshot_url, flush=True)
-            # Send a GET request to the snapshot_url
-            params = {
-                "crop": 1,
-                "quality": 95
-            }
-            response = requests.get(snapshot_url, params=params)
-            # Check if the request was successful (HTTP status code 200)
-            if response.status_code == 200:
-                # Open the image from the response content and convert it to a NumPy array
-                image = Image.open(BytesIO(response.content))
+                if response.status_code == 200:
+                    print("Successfully retrieved snapshot", flush=True)
+                    image = Image.open(BytesIO(response.content))
 
-                file_path = "fullsized.jpg"  # Change this to your desired file path
-                image.save(file_path, format="JPEG")  # You can change the format if needed
+                    file_path = "fullsized.jpg"
+                    image.save(file_path, format="JPEG")
+                    print("Saved full-size image", flush=True)
 
-                # Resize the image while maintaining its aspect ratio
-                max_size = (224, 224)
-                image.thumbnail(max_size)
+                    max_size = (224, 224)
+                    image.thumbnail(max_size)
+                    padded_image = ImageOps.expand(image, border=((max_size[0] - image.size[0]) // 2,
+                                                                  (max_size[1] - image.size[1]) // 2),
+                                                   fill='black')
 
-                # Pad the image to fill the remaining space
-                padded_image = ImageOps.expand(image, border=((max_size[0] - image.size[0]) // 2,
-                                                              (max_size[1] - image.size[1]) // 2),
-                                               fill='black')  # Change the fill color if necessary
+                    file_path = "shrunk.jpg"
+                    padded_image.save(file_path, format="JPEG")
+                    print("Saved processed image for classification", flush=True)
 
-                file_path = "shrunk.jpg"  # Change this to your desired file path
-                padded_image.save(file_path, format="JPEG")  # You can change the format if needed
+                    np_arr = np.array(padded_image)
+                    print("Running classification...", flush=True)
+                    categories = classify(np_arr)
+                    category = categories[0]
+                    index = category.index
+                    score = category.score
+                    display_name = category.display_name
+                    category_name = category.category_name
 
-                np_arr = np.array(padded_image)
+                    print(f"\nClassification results:", flush=True)
+                    print(f"Species: {display_name}", flush=True)
+                    print(f"Confidence: {score:.2f}", flush=True)
 
-                categories = classify(np_arr)
-                category = categories[0]
-                index = category.index
-                score = category.score
-                display_name = category.display_name
-                category_name = category.category_name
+                    start_time = datetime.fromtimestamp(after_data['start_time'])
+                    formatted_start_time = start_time.strftime("%Y-%m-%d %H:%M:%S")
 
-                start_time = datetime.fromtimestamp(after_data['start_time'])
-                formatted_start_time = start_time.strftime("%Y-%m-%d %H:%M:%S")
-                result_text = formatted_start_time + "\n"
-                result_text = result_text + str(category)
-                print(result_text, flush=True)
+                    if index != 964 and score > config['classification']['threshold']:
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT * FROM detections WHERE frigate_event = ?", (frigate_event,))
+                        result = cursor.fetchone()
 
-                if index != 964 and score > config['classification']['threshold']:  # 964 is "background"
-
-                    cursor = conn.cursor()
-
-                    # Check if a record with the given frigate_event exists
-                    cursor.execute("SELECT * FROM detections WHERE frigate_event = ?", (frigate_event,))
-                    result = cursor.fetchone()
-
-                    if result is None:
-                        # Insert a new record if it doesn't exist
-                        print("No record yet for this event. Storing.", flush=True)
-                        cursor.execute("""  
-                            INSERT INTO detections (detection_time, detection_index, score,  
-                            display_name, category_name, frigate_event, camera_name) VALUES (?, ?, ?, ?, ?, ?, ?)  
-                            """, (formatted_start_time, index, score, display_name, category_name, frigate_event, after_data['camera']))
-                        # set the sublabel
-                        set_sublabel(frigate_url, frigate_event, get_common_name(display_name))
-                    else:
-                        print("There is already a record for this event. Checking score", flush=True)
-                        # Update the existing record if the new score is higher
-                        existing_score = result[3]
-                        if score > existing_score:
-                            print("New score is higher. Updating record with higher score.", flush=True)
+                        if result is None:
+                            print("\nStoring new detection in database...", flush=True)
                             cursor.execute("""  
-                                UPDATE detections  
-                                SET detection_time = ?, detection_index = ?, score = ?, display_name = ?, category_name = ?  
-                                WHERE frigate_event = ?  
-                                """, (formatted_start_time, index, score, display_name, category_name, frigate_event))
-                            # set the sublabel
+                                INSERT INTO detections (detection_time, detection_index, score,  
+                                display_name, category_name, frigate_event, camera_name) VALUES (?, ?, ?, ?, ?, ?, ?)  
+                                """, (formatted_start_time, index, score, display_name, category_name, frigate_event, after_data['camera']))
                             set_sublabel(frigate_url, frigate_event, get_common_name(display_name))
+                            print("Successfully stored new detection", flush=True)
                         else:
-                            print("New score is lower.", flush=True)
+                            print("\nChecking existing detection...", flush=True)
+                            existing_score = result[3]
+                            if score > existing_score:
+                                print(f"Updating record (new score {score:.2f} > old score {existing_score:.2f})", flush=True)
+                                cursor.execute("""  
+                                    UPDATE detections  
+                                    SET detection_time = ?, detection_index = ?, score = ?, display_name = ?, category_name = ?  
+                                    WHERE frigate_event = ?  
+                                    """, (formatted_start_time, index, score, display_name, category_name, frigate_event))
+                                set_sublabel(frigate_url, frigate_event, get_common_name(display_name))
+                            else:
+                                print(f"Keeping existing record (new score {score:.2f} <= old score {existing_score:.2f})", flush=True)
 
-                    # Commit the changes
-                    conn.commit()
+                        conn.commit()
+                        print("Database transaction complete", flush=True)
 
+                else:
+                    print(f"Failed to retrieve snapshot. Status: {response.status_code}, Response: {response.text}", flush=True)
 
-            else:
-                print(f"Error: Could not retrieve the image. Status code: {response.status_code}", flush=True)
+        except Exception as e:
+            print(f"Error processing message: {str(e)}", flush=True)
+            import traceback
+            print(traceback.format_exc(), flush=True)
 
     else:
         firstmessage = False
-        print("skipping first message", flush=True)
+        print("Skipping first MQTT message (connection message)", flush=True)
 
     conn.close()
 
 
 def setupdb():
+    print("\nSetting up database...", flush=True)
     conn = sqlite3.connect(DBPATH)
     cursor = conn.cursor()
     cursor.execute("""    
@@ -207,79 +225,92 @@ def setupdb():
         )    
     """)
     conn.commit()
-
+    print("Database setup complete", flush=True)
     conn.close()
+
 
 def load_config():
     global config
     file_path = './config/config.yml'
+    print(f"\nLoading configuration from {file_path}...", flush=True)
     with open(file_path, 'r') as config_file:
         config = yaml.safe_load(config_file)
+    print("Configuration loaded successfully", flush=True)
 
 
 def run_webui():
-    print("Starting flask app", flush=True)
+    print("\nStarting Flask web application...", flush=True)
+    print(f"Host: {config['webui']['host']}", flush=True)
+    print(f"Port: {config['webui']['port']}", flush=True)
     app.run(debug=False, host=config['webui']['host'], port=config['webui']['port'])
 
 
 def run_mqtt_client():
-    print("Starting MQTT client. Connecting to: " + config['frigate']['mqtt_server'], flush=True)
+    print("\nInitializing MQTT client...", flush=True)
+    print(f"MQTT Server: {config['frigate']['mqtt_server']}", flush=True)
+    
     now = datetime.now()
     current_time = now.strftime("%Y%m%d%H%M%S")
-    client = mqtt.Client("birdspeciesid" + current_time)
+    client_id = "birdspeciesid" + current_time
+    print(f"Client ID: {client_id}", flush=True)
+    
+    client = mqtt.Client(client_id)
     client.on_message = on_message
     client.on_disconnect = on_disconnect
     client.on_connect = on_connect
-    # check if we are using authentication and set username/password if so
+
     if config['frigate']['mqtt_auth']:
         username = config['frigate']['mqtt_username']
-        password = config['frigate']['mqtt_password']
-        client.username_pw_set(username, password)
+        print(f"Using MQTT authentication with username: {username}", flush=True)
+        client.username_pw_set(username, config['frigate']['mqtt_password'])
 
-    client.connect(config['frigate']['mqtt_server'])
-    client.loop_forever()
+    try:
+        print(f"Connecting to MQTT server: {config['frigate']['mqtt_server']}", flush=True)
+        client.connect(config['frigate']['mqtt_server'])
+        print("Starting MQTT loop...", flush=True)
+        client.loop_forever()
+    except Exception as e:
+        print(f"Error in MQTT client: {str(e)}", flush=True)
+        import traceback
+        print(traceback.format_exc(), flush=True)
 
 
 def main():
-
+    print("\n=== Starting Bird Species Identification System ===", flush=True)
     now = datetime.now()
     current_time = now.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-
-    print("Time: " + current_time, flush=True)
-    print("Python version", flush=True)
-    print(sys.version, flush=True)
-    print("Version info.", flush=True)
-    print(sys.version_info, flush=True)
+    print(f"Start Time: {current_time}", flush=True)
+    print(f"Python Version: {sys.version}", flush=True)
 
     load_config()
 
-    # Initialize the image classification model
+    print("\nInitializing TFLite model...", flush=True)
     base_options = core.BaseOptions(
         file_name=config['classification']['model'], use_coral=False, num_threads=4)
-
-    # Enable Coral by this setting
     classification_options = processor.ClassificationOptions(
         max_results=1, score_threshold=0)
     options = vision.ImageClassifierOptions(
         base_options=base_options, classification_options=classification_options)
 
-    # create classifier
     global classifier
     classifier = vision.ImageClassifier.create_from_options(options)
+    print("TFLite model initialized successfully", flush=True)
 
-    # setup database
     setupdb()
-    print("Starting threads for Flask and MQTT", flush=True)
+    
+    print("\nStarting multiprocessing...", flush=True)
     flask_process = multiprocessing.Process(target=run_webui)
     mqtt_process = multiprocessing.Process(target=run_mqtt_client)
 
     flask_process.start()
+    print("Flask process started", flush=True)
     mqtt_process.start()
+    print("MQTT process started", flush=True)
 
     flask_process.join()
     mqtt_process.join()
 
 
 if __name__ == '__main__':
-    print("Calling Main", flush=True)
+    print("Starting main process", flush=True)
     main()
