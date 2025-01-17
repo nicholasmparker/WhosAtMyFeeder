@@ -21,11 +21,13 @@
 </template>
 
 <script setup lang="ts">
+// Vue imports
 import { ref, computed, onMounted } from 'vue'
+
+// ECharts imports
 import VChart from 'vue-echarts'
-import * as echarts from 'echarts/core'
+import { use } from 'echarts/core'
 import { BarChart } from 'echarts/charts'
-import type { BarSeriesOption } from 'echarts/charts'
 import {
   TitleComponent,
   TooltipComponent,
@@ -34,30 +36,14 @@ import {
   ToolboxComponent,
   LegendComponent
 } from 'echarts/components'
-import type {
-  TitleComponentOption,
-  TooltipComponentOption,
-  GridComponentOption,
-  DataZoomComponentOption,
-  ToolboxComponentOption,
-  LegendComponentOption
-} from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+
+// Utility imports
 import { format } from 'date-fns'
 import axios from 'axios'
 
-type ECOption = echarts.ComposeOption<
-  | BarSeriesOption
-  | TitleComponentOption
-  | TooltipComponentOption
-  | GridComponentOption
-  | DataZoomComponentOption
-  | ToolboxComponentOption
-  | LegendComponentOption
->
-
 // Register ECharts components
-echarts.use([
+use([
   CanvasRenderer,
   BarChart,
   TitleComponent,
@@ -76,7 +62,7 @@ interface SpeciesCount {
 const loading = ref(true)
 const speciesCounts = ref<SpeciesCount[]>([])
 
-const chartOption = computed<ECOption>(() => ({
+const chartOption = computed(() => ({
   tooltip: {
     trigger: 'axis',
     axisPointer: {
@@ -113,17 +99,31 @@ const chartOption = computed<ECOption>(() => ({
       type: 'bar',
       data: speciesCounts.value.map(s => s.count),
       itemStyle: {
-        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: '#3b82f6' },
-          { offset: 1, color: '#93c5fd' }
-        ])
+        color: {
+          type: 'linear',
+          x: 0,
+          y: 0,
+          x2: 0,
+          y2: 1,
+          colorStops: [
+            { offset: 0, color: '#3b82f6' },
+            { offset: 1, color: '#93c5fd' }
+          ]
+        }
       },
       emphasis: {
         itemStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#2563eb' },
-            { offset: 1, color: '#60a5fa' }
-          ])
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: '#2563eb' },
+              { offset: 1, color: '#60a5fa' }
+            ]
+          }
         }
       }
     }

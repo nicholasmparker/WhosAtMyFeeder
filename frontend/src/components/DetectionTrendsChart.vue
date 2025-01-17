@@ -21,11 +21,13 @@
 </template>
 
 <script setup lang="ts">
+// Vue imports
 import { ref, computed, onMounted } from 'vue'
+
+// ECharts imports
 import VChart from 'vue-echarts'
-import * as echarts from 'echarts/core'
+import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
-import type { LineSeriesOption } from 'echarts/charts'
 import {
   TitleComponent,
   TooltipComponent,
@@ -35,32 +37,14 @@ import {
   LegendComponent,
   MarkAreaComponent
 } from 'echarts/components'
-import type {
-  TitleComponentOption,
-  TooltipComponentOption,
-  GridComponentOption,
-  DataZoomComponentOption,
-  ToolboxComponentOption,
-  LegendComponentOption,
-  MarkAreaComponentOption
-} from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { format, parseISO, startOfDay, endOfDay } from 'date-fns'
+
+// Utility imports
+import { format, parseISO } from 'date-fns'
 import axios from 'axios'
 
-type ECOption = echarts.ComposeOption<
-  | LineSeriesOption
-  | TitleComponentOption
-  | TooltipComponentOption
-  | GridComponentOption
-  | DataZoomComponentOption
-  | ToolboxComponentOption
-  | LegendComponentOption
-  | MarkAreaComponentOption
->
-
 // Register ECharts components
-echarts.use([
+use([
   CanvasRenderer,
   LineChart,
   TitleComponent,
@@ -84,14 +68,14 @@ const loading = ref(true)
 const dailyData = ref<DailyData[]>([])
 const topSpecies = ref<string[]>([])
 
-const chartOption = computed<ECOption>(() => {
+const chartOption = computed(() => {
   // Get dates for x-axis
   const dates = dailyData.value.map(d => d.date)
   
   // Create series for each top species
   const series = topSpecies.value.map(species => ({
     name: species,
-    type: 'line' as const,
+    type: 'line',
     smooth: true,
     symbol: 'circle',
     symbolSize: 8,
