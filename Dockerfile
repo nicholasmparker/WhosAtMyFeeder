@@ -1,7 +1,8 @@
 FROM python:3.8
 
 # Install Node.js and npm
-RUN curl -sL https://deb.nodesource.com/setup_14.x | bash - && \
+RUN apt-get update && \
+    curl -sL https://deb.nodesource.com/setup_14.x | bash - && \
     apt-get install -y nodejs
 
 # Install Vue CLI
