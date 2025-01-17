@@ -4,7 +4,7 @@ This file will be used to jot down notes, ideas, and plans for improving the pro
 
 ## Notes
 
-- Add your notes here.
+- Modernizing the application to improve performance and maintainability.
 
 ## Ideas
 
