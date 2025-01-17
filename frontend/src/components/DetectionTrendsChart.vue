@@ -28,6 +28,7 @@ import { ref, computed, onMounted } from 'vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
+import type { LineSeriesOption } from 'echarts/charts'
 import {
   TitleComponent,
   TooltipComponent,
@@ -36,6 +37,15 @@ import {
   ToolboxComponent,
   LegendComponent,
   MarkAreaComponent
+} from 'echarts/components'
+import type {
+  TitleComponentOption,
+  TooltipComponentOption,
+  GridComponentOption,
+  DataZoomComponentOption,
+  ToolboxComponentOption,
+  LegendComponentOption,
+  MarkAreaComponentOption
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 
@@ -73,7 +83,7 @@ const chartOption = computed(() => {
   const dates = dailyData.value.map(d => d.date)
   
   // Create series for each top species
-  const series = topSpecies.value.map(species => ({
+  const seriesData: LineSeriesOption[] = topSpecies.value.map(species => ({
     name: species,
     type: 'line',
     smooth: true,
@@ -84,12 +94,13 @@ const chartOption = computed(() => {
       focus: 'series'
     },
     lineStyle: {
-      width: 3
+      width: 3,
+      type: 'solid'
     }
   }))
 
   // Add total detections series
-  series.push({
+  const totalSeries: LineSeriesOption = {
     name: 'Total Detections',
     type: 'line',
     smooth: true,
@@ -104,9 +115,11 @@ const chartOption = computed(() => {
       type: 'dashed'
     },
     itemStyle: {
-      color: '#6b7280' // gray-500
+      color: '#6b7280'
     }
-  })
+  }
+
+  seriesData.push(totalSeries)
 
   return {
     tooltip: {
@@ -147,7 +160,7 @@ const chartOption = computed(() => {
         }
       }
     },
-    series,
+    series: seriesData,
     dataZoom: [
       {
         type: 'slider',
@@ -193,15 +206,24 @@ const fetchData = async () => {
       )
     )
     
-    // Process daily data
+    // Process daily data and track species totals
+    const speciesMap = new Map<string, { common_name: string; total: number }>()
     const processedData: DailyData[] = dates.map((date, index) => {
       const dayData = responses[index].data
       const bySpecies: { [key: string]: number } = {}
       let total = 0
 
       Object.values(dayData).forEach((species: any) => {
-        bySpecies[species.common_name] = species.total_detections
+        bySpecies[species.scientific_name] = species.total_detections
         total += species.total_detections
+
+        // Track species totals for top 5 calculation
+        const existingData = speciesMap.get(species.scientific_name) || {
+          common_name: species.common_name,
+          total: 0
+        }
+        existingData.total += species.total_detections
+        speciesMap.set(species.scientific_name, existingData)
       })
 
       return {
@@ -211,19 +233,11 @@ const fetchData = async () => {
       }
     })
 
-    // Calculate top species by total detections
-    const speciesCounts = new Map<string, number>()
-    processedData.forEach(day => {
-      Object.entries(day.bySpecies).forEach(([species, count]) => {
-        speciesCounts.set(species, (speciesCounts.get(species) || 0) + count)
-      })
-    })
-
     // Get top 5 species
-    topSpecies.value = Array.from(speciesCounts.entries())
-      .sort((a, b) => b[1] - a[1])
+    topSpecies.value = Array.from(speciesMap.entries())
+      .sort((a, b) => b[1].total - a[1].total)
       .slice(0, 5)
-      .map(([species]) => species)
+      .map(([scientific_name, data]) => scientific_name)
 
     dailyData.value = processedData
     

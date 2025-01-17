@@ -28,6 +28,7 @@ import { ref, computed, onMounted } from 'vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { BarChart } from 'echarts/charts'
+import type { BarSeriesOption } from 'echarts/charts'
 import {
   TitleComponent,
   TooltipComponent,
@@ -35,6 +36,14 @@ import {
   DataZoomComponent,
   ToolboxComponent,
   LegendComponent
+} from 'echarts/components'
+import type {
+  TitleComponentOption,
+  TooltipComponentOption,
+  GridComponentOption,
+  DataZoomComponentOption,
+  ToolboxComponentOption,
+  LegendComponentOption
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 
@@ -62,42 +71,25 @@ interface SpeciesCount {
 const loading = ref(true)
 const speciesCounts = ref<SpeciesCount[]>([])
 
-const chartOption = computed(() => ({
-  tooltip: {
-    trigger: 'axis',
-    axisPointer: {
-      type: 'shadow'
+const chartOption = computed(() => {
+  const seriesData: BarSeriesOption = {
+    name: 'Detections',
+    type: 'bar',
+    data: speciesCounts.value.map(s => s.count),
+    itemStyle: {
+      color: {
+        type: 'linear',
+        x: 0,
+        y: 0,
+        x2: 0,
+        y2: 1,
+        colorStops: [
+          { offset: 0, color: '#3b82f6' },
+          { offset: 1, color: '#93c5fd' }
+        ]
+      }
     },
-    formatter: (params: any) => {
-      const data = params[0]
-      return `${data.name}<br/>Detections: ${data.value}`
-    }
-  },
-  grid: {
-    left: '3%',
-    right: '4%',
-    bottom: '15%',
-    top: '3%',
-    containLabel: true
-  },
-  xAxis: {
-    type: 'category',
-    data: speciesCounts.value.map(s => s.common_name),
-    axisLabel: {
-      interval: 0,
-      rotate: 45,
-      overflow: 'truncate'
-    }
-  },
-  yAxis: {
-    type: 'value',
-    name: 'Detections'
-  },
-  series: [
-    {
-      name: 'Detections',
-      type: 'bar',
-      data: speciesCounts.value.map(s => s.count),
+    emphasis: {
       itemStyle: {
         color: {
           type: 'linear',
@@ -106,43 +98,62 @@ const chartOption = computed(() => ({
           x2: 0,
           y2: 1,
           colorStops: [
-            { offset: 0, color: '#3b82f6' },
-            { offset: 1, color: '#93c5fd' }
+            { offset: 0, color: '#2563eb' },
+            { offset: 1, color: '#60a5fa' }
           ]
-        }
-      },
-      emphasis: {
-        itemStyle: {
-          color: {
-            type: 'linear',
-            x: 0,
-            y: 0,
-            x2: 0,
-            y2: 1,
-            colorStops: [
-              { offset: 0, color: '#2563eb' },
-              { offset: 1, color: '#60a5fa' }
-            ]
-          }
         }
       }
     }
-  ],
-  dataZoom: [
-    {
-      type: 'slider',
-      show: true,
-      start: 0,
-      end: 100,
-      height: 20
-    }
-  ],
-  toolbox: {
-    feature: {
-      saveAsImage: { title: 'Save' }
+  }
+
+  return {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'shadow'
+      },
+      formatter: (params: any) => {
+        const data = params[0]
+        return `${data.name}<br/>Detections: ${data.value}`
+      }
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '15%',
+      top: '3%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      data: speciesCounts.value.map(s => s.common_name),
+      axisLabel: {
+        interval: 0,
+        rotate: 45,
+        overflow: 'truncate'
+      }
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Detections'
+    },
+    series: [seriesData],
+    dataZoom: [
+      {
+        type: 'slider',
+        show: true,
+        start: 0,
+        end: 100,
+        height: 20
+      }
+    ],
+    toolbox: {
+      feature: {
+        saveAsImage: { title: 'Save' }
+      }
     }
   }
-}))
+})
 
 const fetchData = async () => {
   try {
@@ -165,18 +176,22 @@ const fetchData = async () => {
       )
     )
     
-    // Count species occurrences
-    const speciesMap = new Map<string, number>()
+    // Aggregate species counts across all days
+    const speciesMap = new Map<string, { common_name: string; count: number }>()
+    
     responses.forEach(response => {
       Object.values(response.data).forEach((species: any) => {
-        const count = speciesMap.get(species.common_name) || 0
-        speciesMap.set(species.common_name, count + species.total_detections)
+        const existingData = speciesMap.get(species.scientific_name) || {
+          common_name: species.common_name,
+          count: 0
+        }
+        existingData.count += species.total_detections
+        speciesMap.set(species.scientific_name, existingData)
       })
     })
     
     // Convert to array and sort by count
-    speciesCounts.value = Array.from(speciesMap.entries())
-      .map(([common_name, count]) => ({ common_name, count }))
+    speciesCounts.value = Array.from(speciesMap.values())
       .sort((a, b) => b.count - a.count)
     
   } catch (error) {

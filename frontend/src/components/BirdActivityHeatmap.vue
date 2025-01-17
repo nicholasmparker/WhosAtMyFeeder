@@ -21,13 +21,13 @@
 </template>
 
 <script setup lang="ts">
+// Vue imports
 import { ref, computed, onMounted } from 'vue'
-import { defineComponent } from 'vue'
-import VChart, { THEME_KEY } from 'vue-echarts'
-import type { ComponentPublicInstance } from 'vue'
-import * as echarts from 'echarts/core'
+
+// ECharts imports
+import VChart from 'vue-echarts'
+import { use } from 'echarts/core'
 import { HeatmapChart } from 'echarts/charts'
-import type { HeatmapSeriesOption } from 'echarts/charts'
 import {
   TitleComponent,
   TooltipComponent,
@@ -36,30 +36,14 @@ import {
   DataZoomComponent,
   ToolboxComponent
 } from 'echarts/components'
-import type {
-  TitleComponentOption,
-  TooltipComponentOption,
-  GridComponentOption,
-  VisualMapComponentOption,
-  DataZoomComponentOption,
-  ToolboxComponentOption
-} from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 
-type ECOption = echarts.ComposeOption<
-  | HeatmapSeriesOption
-  | TitleComponentOption
-  | TooltipComponentOption
-  | GridComponentOption
-  | VisualMapComponentOption
-  | DataZoomComponentOption
-  | ToolboxComponentOption
->
+// Utility imports
 import { format, parseISO, getHours, getDay } from 'date-fns'
 import axios from 'axios'
 
 // Register ECharts components
-echarts.use([
+use([
   CanvasRenderer,
   HeatmapChart,
   TitleComponent,
@@ -69,6 +53,7 @@ echarts.use([
   DataZoomComponent,
   ToolboxComponent
 ])
+
 
 interface Detection {
   detection_time: string
@@ -180,17 +165,32 @@ const fetchData = async () => {
       )
     )
     
-    // Combine all detections
-    const allDetections: Detection[] = []
-    responses.forEach(response => {
-      Object.values(response.data).forEach((species: any) => {
-        species.detections?.forEach((detection: Detection) => {
-          allDetections.push(detection)
+    // Process daily data
+    const activityMatrix: number[][] = Array(24).fill(0).map(() => Array(7).fill(0))
+    
+    dates.forEach((date, dayIndex) => {
+      const dayData = responses[dayIndex].data
+      Object.values(dayData).forEach((species: any) => {
+        species.hourly_detections.forEach((count: number, hour: number) => {
+          activityMatrix[hour][dayIndex] = (activityMatrix[hour][dayIndex] || 0) + count
         })
       })
     })
     
-    detections.value = allDetections
+    // Convert to detections array format
+    const processedDetections: Detection[] = []
+    activityMatrix.forEach((hourData, hour) => {
+      hourData.forEach((count, day) => {
+        if (count > 0) {
+          processedDetections.push({
+            detection_time: `${dates[day]}T${hour.toString().padStart(2, '0')}:00:00`,
+            common_name: 'All Species'
+          })
+        }
+      })
+    })
+    
+    detections.value = processedDetections
   } catch (error) {
     console.error('Failed to fetch detection data:', error)
   } finally {
