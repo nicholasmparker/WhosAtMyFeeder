@@ -25,4 +25,8 @@ COPY queries.py .
 COPY templates/ ./templates/
 COPY static/ ./static/
 
-CMD python ./speciesid.py
+# Install http-server to serve the Vue.js application
+RUN npm install -g http-server
+
+# Serve the Vue.js application
+CMD http-server /app/static/js/dist -p 8080
