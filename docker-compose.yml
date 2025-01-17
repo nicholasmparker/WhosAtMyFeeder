@@ -3,7 +3,7 @@ services:
   whosatmyfeeder:
     container_name: whosatmyfeeder
     restart: unless-stopped
-    image: mmcc73/whosatmyfeeder:latest
+    build: .
     volumes:
       - ./config:/config
       - ./data:/data

@@ -7,6 +7,13 @@ RUN curl -sL https://deb.nodesource.com/setup_14.x | bash - && \
 # Install Vue CLI
 RUN npm install -g @vue/cli
 
+# Build Vue.js components
+WORKDIR /app/static/js
+COPY static/js/ ./static/js/
+RUN npm install && npm run build
+
+WORKDIR /app
+
 RUN apt-get update && apt-get install ffmpeg libsm6 libxext6  -y
 COPY requirements.txt .
 RUN pip install -r requirements.txt
