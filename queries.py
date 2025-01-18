@@ -2,11 +2,10 @@ import sqlite3
 from collections import defaultdict
 from datetime import datetime
 
-DBPATH = './data/speciesid.db'  # Relative path as in original
-NAMEDBPATH = './birdnames.db'  # Relative path as in original
+DBPATH = './data/speciesid.db'
 
 def get_common_name(scientific_name):
-    conn = sqlite3.connect(NAMEDBPATH)
+    conn = sqlite3.connect(DBPATH)
     cursor = conn.cursor()
 
     cursor.execute("SELECT common_name FROM birdnames WHERE scientific_name = ?", (scientific_name,))
@@ -50,9 +49,17 @@ def recent_detections(num_detections):
 
 def get_daily_summary(date):
     date_str = date.strftime('%Y-%m-%d')
+    print(f"\nGetting daily summary for date: {date_str}", flush=True)
+    
     conn = sqlite3.connect(DBPATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+
+    # First check if we have any data for this date
+    check_query = "SELECT COUNT(*) FROM detections WHERE DATE(detection_time) = ?"
+    cursor.execute(check_query, (date_str,))
+    count = cursor.fetchone()[0]
+    print(f"Found {count} detections for date {date_str}", flush=True)
 
     query = '''  
         SELECT display_name,  
@@ -70,6 +77,7 @@ def get_daily_summary(date):
 
     cursor.execute(query, (date_str,))
     rows = cursor.fetchall()
+    print(f"Query returned {len(rows)} rows", flush=True)
 
     summary = defaultdict(lambda: {
         'scientific_name': '',
@@ -85,8 +93,10 @@ def get_daily_summary(date):
         summary[display_name]['total_detections'] += row['hourly_detections']
         summary[display_name]['hourly_detections'][int(row['hour'])] = row['hourly_detections']
 
+    result = dict(summary)
+    print(f"Returning summary with {len(result)} species", flush=True)
     conn.close()
-    return dict(summary)
+    return result
 
 
 def get_records_for_date_hour(date, hour):

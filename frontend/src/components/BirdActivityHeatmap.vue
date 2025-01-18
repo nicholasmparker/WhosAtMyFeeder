@@ -39,7 +39,7 @@ import {
 import { CanvasRenderer } from 'echarts/renderers'
 
 // Utility imports
-import { format, parseISO, getHours, getDay } from 'date-fns'
+import { format, parseISO, getHours } from 'date-fns'
 import axios from 'axios'
 
 // Register ECharts components
@@ -54,14 +54,23 @@ use([
   ToolboxComponent
 ])
 
-
 interface Detection {
   detection_time: string
   common_name: string
 }
 
+interface DailySummaryResponse {
+  [key: string]: {
+    common_name: string
+    scientific_name: string
+    total_detections: number
+    hourly_detections: number[]
+  }
+}
+
 const loading = ref(true)
 const detections = ref<Detection[]>([])
+const dateList = ref<string[]>([])
 
 // Initialize data matrix for the heatmap (24 hours x 7 days)
 const activityData = computed(() => {
@@ -70,8 +79,13 @@ const activityData = computed(() => {
   detections.value.forEach(detection => {
     const date = parseISO(detection.detection_time)
     const hour = getHours(date)
-    const day = getDay(date)
-    data[hour][day]++
+    const dateStr = format(date, 'yyyy-MM-dd')
+    
+    // Find the index of this date in our dates array
+    const dayIndex = dateList.value.indexOf(dateStr)
+    if (dayIndex !== -1) {
+      data[hour][dayIndex]++
+    }
   })
   
   // Convert to format expected by ECharts
@@ -84,10 +98,11 @@ const chartOption = computed(() => ({
   tooltip: {
     position: 'top',
     formatter: (params: any) => {
-      const day = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][params.data[0]]
+      const days = ['6 days ago', '5 days ago', '4 days ago', '3 days ago', '2 days ago', 'Yesterday', 'Today']
+      const day = days[params.data[0]]
       const hour = params.data[1]
       const value = params.data[2]
-      return `${day} ${hour}:00<br>Detections: ${value}`
+      return `${day} at ${hour}:00<br>Detections: ${value}`
     }
   },
   grid: {
@@ -98,9 +113,13 @@ const chartOption = computed(() => ({
   },
   xAxis: {
     type: 'category',
-    data: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    data: ['6 days ago', '5 days ago', '4 days ago', '3 days ago', '2 days ago', 'Yesterday', 'Today'],
     splitArea: {
       show: true
+    },
+    axisLabel: {
+      interval: 0,
+      rotate: 30
     }
   },
   yAxis: {
@@ -147,52 +166,78 @@ const chartOption = computed(() => ({
 const fetchData = async () => {
   try {
     loading.value = true
-    // Get the last 7 days of data
-    const endDate = new Date()
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - 7)
-    
-    const dates = Array(7).fill(0).map((_, i) => {
-      const date = new Date(startDate)
-      date.setDate(date.getDate() + i)
+    // Get today and the previous 6 days
+    const today = new Date()
+    dateList.value = Array(7).fill(0).map((_, i) => {
+      const date = new Date(today)
+      date.setDate(date.getDate() - (6 - i)) // Start 6 days ago, end with today
       return format(date, 'yyyy-MM-dd')
     })
     
+    console.log('Requesting data for dates:', JSON.stringify(dateList.value, null, 2))
+    
     // Fetch data for each day
     const responses = await Promise.all(
-      dates.map(date => 
-        axios.get(`/api/detections/daily-summary/${date}`)
-      )
+      dateList.value.map(async (date: string) => {
+        console.log(`Fetching data for date: ${date}`)
+        try {
+          const response = await axios.get<DailySummaryResponse>(`/api/detections/daily-summary/${date}`)
+          console.log(`Response for ${date}:`, JSON.stringify(response.data, null, 2))
+          return response
+        } catch (error) {
+          if (axios.isAxiosError(error)) {
+            console.error(`Error fetching data for ${date}:`, error.response?.data || error.message)
+          } else {
+            console.error(`Error fetching data for ${date}:`, error)
+          }
+          throw error
+        }
+      })
     )
     
-    // Process daily data
-    const activityMatrix: number[][] = Array(24).fill(0).map(() => Array(7).fill(0))
+    console.log('All responses received')
     
-    dates.forEach((date, dayIndex) => {
+    // Process daily data
+    const processedDetections: Detection[] = []
+    
+    dateList.value.forEach((date: string, dayIndex: number) => {
       const dayData = responses[dayIndex].data
-      Object.values(dayData).forEach((species: any) => {
+      console.log(`Processing data for ${date}:`, JSON.stringify(dayData, null, 2))
+      
+      if (Object.keys(dayData).length === 0) {
+        console.log(`No data for ${date}`)
+        return
+      }
+      
+      Object.values(dayData).forEach((species) => {
+        if (!species.hourly_detections) {
+          console.warn(`Missing hourly_detections for species:`, JSON.stringify(species, null, 2))
+          return
+        }
+        
         species.hourly_detections.forEach((count: number, hour: number) => {
-          activityMatrix[hour][dayIndex] = (activityMatrix[hour][dayIndex] || 0) + count
+          if (count > 0) {
+            // Create a detection entry for each count
+            for (let i = 0; i < count; i++) {
+              processedDetections.push({
+                detection_time: `${date}T${hour.toString().padStart(2, '0')}:00:00`,
+                common_name: species.common_name
+              })
+            }
+          }
         })
       })
     })
     
-    // Convert to detections array format
-    const processedDetections: Detection[] = []
-    activityMatrix.forEach((hourData, hour) => {
-      hourData.forEach((count, day) => {
-        if (count > 0) {
-          processedDetections.push({
-            detection_time: `${dates[day]}T${hour.toString().padStart(2, '0')}:00:00`,
-            common_name: 'All Species'
-          })
-        }
-      })
-    })
+    console.log('Processed detections:', JSON.stringify(processedDetections.slice(0, 5), null, 2), `(total: ${processedDetections.length})`)
     
     detections.value = processedDetections
   } catch (error) {
-    console.error('Failed to fetch detection data:', error)
+    if (axios.isAxiosError(error)) {
+      console.error('Failed to fetch detection data:', error.response?.data || error.message)
+    } else {
+      console.error('Failed to fetch detection data:', error)
+    }
   } finally {
     loading.value = false
   }

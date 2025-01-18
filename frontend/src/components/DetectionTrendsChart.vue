@@ -66,36 +66,82 @@ use([
   MarkAreaComponent
 ])
 
-interface DailyData {
-  date: string
+interface HourlyData {
+  hour: number
   total: number
   bySpecies: {
     [key: string]: number
   }
 }
 
+interface DailySummaryResponse {
+  [key: string]: {
+    common_name: string
+    scientific_name: string
+    total_detections: number
+    hourly_detections: number[]
+  }
+}
+
+interface Species {
+  scientific_name: string
+  common_name: string
+}
+
 const loading = ref(true)
-const dailyData = ref<DailyData[]>([])
-const topSpecies = ref<string[]>([])
+const hourlyData = ref<HourlyData[]>([])
+const topSpecies = ref<Species[]>([])
+
+// Color palette for species
+const speciesColors = [
+  '#ef4444', // Red (Cardinal)
+  '#3b82f6', // Blue (Blue Jay)
+  '#10b981', // Green (Chickadee)
+  '#f59e0b', // Yellow (Nuthatch)
+  '#8b5cf6'  // Purple (Other)
+]
 
 const chartOption = computed(() => {
-  // Get dates for x-axis
-  const dates = dailyData.value.map(d => d.date)
+  // Get hours for x-axis (0-23)
+  const hours = Array.from({ length: 24 }, (_, i) => i)
   
   // Create series for each top species
-  const seriesData: LineSeriesOption[] = topSpecies.value.map(species => ({
-    name: species,
+  const seriesData: LineSeriesOption[] = topSpecies.value.map((species, index) => ({
+    name: species.common_name,
     type: 'line',
     smooth: true,
     symbol: 'circle',
     symbolSize: 8,
-    data: dailyData.value.map(d => d.bySpecies[species] || 0),
+    data: hours.map(hour => {
+      const hourData = hourlyData.value.find(d => d.hour === hour)
+      return hourData ? hourData.bySpecies[species.scientific_name] || 0 : 0
+    }),
     emphasis: {
       focus: 'series'
     },
     lineStyle: {
       width: 3,
       type: 'solid'
+    },
+    itemStyle: {
+      color: speciesColors[index]
+    },
+    markArea: {
+      silent: true,
+      itemStyle: {
+        color: 'rgba(0, 0, 0, 0.1)'
+      },
+      data: [[{
+        name: 'Night',
+        xAxis: '0'
+      }, {
+        xAxis: '6'
+      }], [{
+        name: 'Night',
+        xAxis: '18'
+      }, {
+        xAxis: '23'
+      }]]
     }
   }))
 
@@ -106,7 +152,10 @@ const chartOption = computed(() => {
     smooth: true,
     symbol: 'circle',
     symbolSize: 8,
-    data: dailyData.value.map(d => d.total),
+    data: hours.map(hour => {
+      const hourData = hourlyData.value.find(d => d.hour === hour)
+      return hourData ? hourData.total : 0
+    }),
     emphasis: {
       focus: 'series'
     },
@@ -126,6 +175,16 @@ const chartOption = computed(() => {
       trigger: 'axis',
       axisPointer: {
         type: 'cross'
+      },
+      formatter: (params: any) => {
+        let result = `${params[0].axisValue}:00<br/>`
+        // Only show species with detections
+        params.forEach((param: any) => {
+          if (param.value > 0) {
+            result += `${param.marker} ${param.seriesName}: ${param.value}<br/>`
+          }
+        })
+        return result
       }
     },
     legend: {
@@ -133,31 +192,52 @@ const chartOption = computed(() => {
       orient: 'horizontal',
       top: 0,
       right: 10,
-      data: [...topSpecies.value, 'Total Detections']
+      textStyle: {
+        fontSize: 12,
+        color: '#374151'
+      },
+      data: [...topSpecies.value.map(s => s.common_name), 'Total Detections']
     },
     grid: {
-      left: '3%',
-      right: '4%',
+      left: '5%',
+      right: '5%',
       bottom: '15%',
-      top: '10%',
+      top: '15%',
       containLabel: true
     },
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: dates,
+      data: hours.map(hour => `${hour}:00`),
       axisLabel: {
-        formatter: (value: string) => format(parseISO(value), 'MMM d')
+        interval: 2,
+        fontSize: 11,
+        color: '#374151'
+      },
+      splitLine: {
+        show: true,
+        lineStyle: {
+          type: 'dashed',
+          color: '#e5e7eb',
+          opacity: 0.5
+        }
       }
     },
     yAxis: {
       type: 'value',
       name: 'Detections',
+      minInterval: 1,
+      max: 3,
       splitLine: {
         show: true,
         lineStyle: {
-          type: 'dashed'
+          type: 'dashed',
+          color: '#e5e7eb',
+          opacity: 0.5
         }
+      },
+      axisLabel: {
+        color: '#374151'
       }
     },
     series: seriesData,
@@ -165,13 +245,14 @@ const chartOption = computed(() => {
       {
         type: 'slider',
         show: true,
-        start: 50,
+        start: 0,
         end: 100,
-        height: 20
+        height: 20,
+        borderColor: '#e5e7eb'
       },
       {
         type: 'inside',
-        start: 50,
+        start: 0,
         end: 100
       }
     ],
@@ -188,58 +269,60 @@ const chartOption = computed(() => {
 const fetchData = async () => {
   try {
     loading.value = true
-    // Get the last 30 days of data
-    const endDate = new Date()
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - 30)
     
-    const dates = Array(30).fill(0).map((_, i) => {
-      const date = new Date(startDate)
-      date.setDate(date.getDate() + i)
-      return format(date, 'yyyy-MM-dd')
-    })
+    // Get today's data
+    const today = format(new Date(), 'yyyy-MM-dd')
+    console.log('Fetching data for today:', today)
     
-    // Fetch data for each day
-    const responses = await Promise.all(
-      dates.map(date => 
-        axios.get(`/api/detections/daily-summary/${date}`)
-      )
-    )
+    const response = await axios.get<DailySummaryResponse>(`/api/detections/daily-summary/${today}`)
+    console.log('Response:', JSON.stringify(response.data, null, 2))
     
-    // Process daily data and track species totals
+    // Process hourly data and track species totals
     const speciesMap = new Map<string, { common_name: string; total: number }>()
-    const processedData: DailyData[] = dates.map((date, index) => {
-      const dayData = responses[index].data
-      const bySpecies: { [key: string]: number } = {}
-      let total = 0
-
-      Object.values(dayData).forEach((species: any) => {
-        bySpecies[species.scientific_name] = species.total_detections
-        total += species.total_detections
-
-        // Track species totals for top 5 calculation
-        const existingData = speciesMap.get(species.scientific_name) || {
-          common_name: species.common_name,
-          total: 0
+    const processedData: HourlyData[] = []
+    
+    // Initialize hourly data for each species
+    Object.values(response.data).forEach((species) => {
+      species.hourly_detections.forEach((count, hour) => {
+        if (count > 0) {
+          const hourData = processedData.find(d => d.hour === hour) || {
+            hour,
+            total: 0,
+            bySpecies: {}
+          }
+          
+          hourData.bySpecies[species.scientific_name] = count
+          hourData.total += count
+          
+          if (!processedData.find(d => d.hour === hour)) {
+            processedData.push(hourData)
+          }
+          
+          // Track species totals
+          const existingData = speciesMap.get(species.scientific_name) || {
+            common_name: species.common_name,
+            total: 0
+          }
+          existingData.total += count
+          speciesMap.set(species.scientific_name, existingData)
         }
-        existingData.total += species.total_detections
-        speciesMap.set(species.scientific_name, existingData)
       })
-
-      return {
-        date,
-        total,
-        bySpecies
-      }
     })
-
-    // Get top 5 species
+    
+    // Sort by hour
+    processedData.sort((a, b) => a.hour - b.hour)
+    
+    // Get top species with common names
     topSpecies.value = Array.from(speciesMap.entries())
       .sort((a, b) => b[1].total - a[1].total)
       .slice(0, 5)
-      .map(([scientific_name, data]) => scientific_name)
-
-    dailyData.value = processedData
+      .map(([scientific_name, data]) => ({
+        scientific_name,
+        common_name: data.common_name
+      }))
+    
+    hourlyData.value = processedData
+    console.log('Processed hourly data:', JSON.stringify(processedData, null, 2))
     
   } catch (error) {
     console.error('Failed to fetch trend data:', error)

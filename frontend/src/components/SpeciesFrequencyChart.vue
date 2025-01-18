@@ -68,41 +68,39 @@ interface SpeciesCount {
   count: number
 }
 
+interface DailySummaryResponse {
+  [key: string]: {
+    common_name: string
+    scientific_name: string
+    total_detections: number
+    hourly_detections: number[]
+  }
+}
+
 const loading = ref(true)
 const speciesCounts = ref<SpeciesCount[]>([])
+
+// Color palette for species
+const speciesColors = [
+  '#ef4444', // Red (Cardinal)
+  '#3b82f6', // Blue (Blue Jay)
+  '#10b981', // Green (Chickadee)
+  '#f59e0b', // Yellow (Nuthatch)
+  '#8b5cf6'  // Purple (Other)
+]
 
 const chartOption = computed(() => {
   const seriesData: BarSeriesOption = {
     name: 'Detections',
     type: 'bar',
-    data: speciesCounts.value.map(s => s.count),
-    itemStyle: {
-      color: {
-        type: 'linear',
-        x: 0,
-        y: 0,
-        x2: 0,
-        y2: 1,
-        colorStops: [
-          { offset: 0, color: '#3b82f6' },
-          { offset: 1, color: '#93c5fd' }
-        ]
-      }
-    },
-    emphasis: {
+    data: speciesCounts.value.map((s, index) => ({
+      value: s.count,
       itemStyle: {
-        color: {
-          type: 'linear',
-          x: 0,
-          y: 0,
-          x2: 0,
-          y2: 1,
-          colorStops: [
-            { offset: 0, color: '#2563eb' },
-            { offset: 1, color: '#60a5fa' }
-          ]
-        }
+        color: speciesColors[index]
       }
+    })),
+    emphasis: {
+      focus: 'series'
     }
   }
 
@@ -118,10 +116,10 @@ const chartOption = computed(() => {
       }
     },
     grid: {
-      left: '3%',
-      right: '4%',
+      left: '5%',
+      right: '5%',
       bottom: '15%',
-      top: '3%',
+      top: '10%',
       containLabel: true
     },
     xAxis: {
@@ -130,12 +128,29 @@ const chartOption = computed(() => {
       axisLabel: {
         interval: 0,
         rotate: 45,
-        overflow: 'truncate'
+        overflow: 'truncate',
+        fontSize: 12,
+        color: '#374151'
+      },
+      axisTick: {
+        alignWithLabel: true
       }
     },
     yAxis: {
       type: 'value',
-      name: 'Detections'
+      name: 'Detections',
+      minInterval: 1,
+      max: 3,
+      splitLine: {
+        show: true,
+        lineStyle: {
+          type: 'dashed',
+          color: '#e5e7eb'
+        }
+      },
+      axisLabel: {
+        color: '#374151'
+      }
     },
     series: [seriesData],
     dataZoom: [
@@ -158,41 +173,28 @@ const chartOption = computed(() => {
 const fetchData = async () => {
   try {
     loading.value = true
-    // Get the last 30 days of data
-    const endDate = new Date()
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - 30)
+    // Get today's data
+    const today = format(new Date(), 'yyyy-MM-dd')
+    console.log('Fetching data for today:', today)
     
-    const dates = Array(30).fill(0).map((_, i) => {
-      const date = new Date(startDate)
-      date.setDate(date.getDate() + i)
-      return format(date, 'yyyy-MM-dd')
-    })
+    const response = await axios.get<DailySummaryResponse>(`/api/detections/daily-summary/${today}`)
+    console.log('Response:', JSON.stringify(response.data, null, 2))
     
-    // Fetch data for each day
-    const responses = await Promise.all(
-      dates.map(date => 
-        axios.get(`/api/detections/daily-summary/${date}`)
-      )
-    )
-    
-    // Aggregate species counts across all days
+    // Convert response to species counts
     const speciesMap = new Map<string, { common_name: string; count: number }>()
     
-    responses.forEach(response => {
-      Object.values(response.data).forEach((species: any) => {
-        const existingData = speciesMap.get(species.scientific_name) || {
-          common_name: species.common_name,
-          count: 0
-        }
-        existingData.count += species.total_detections
-        speciesMap.set(species.scientific_name, existingData)
+    Object.values(response.data).forEach((species) => {
+      speciesMap.set(species.scientific_name, {
+        common_name: species.common_name,
+        count: species.total_detections
       })
     })
     
     // Convert to array and sort by count
     speciesCounts.value = Array.from(speciesMap.values())
       .sort((a, b) => b.count - a.count)
+    
+    console.log('Processed species counts:', JSON.stringify(speciesCounts.value, null, 2))
     
   } catch (error) {
     console.error('Failed to fetch species data:', error)

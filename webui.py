@@ -12,7 +12,6 @@ import os
 app = Flask(__name__, static_folder='static/dist', static_url_path='')
 config = None
 DBPATH = './data/speciesid.db'
-NAMEDBPATH = './birdnames.db'
 
 # API Routes
 @app.route('/api/detections/recent')
@@ -24,11 +23,40 @@ def api_recent_detections():
 @app.route('/api/detections/daily-summary/<date>')
 def api_daily_summary(date):
     try:
+        print(f"\nFetching daily summary for date: {date}", flush=True)
+        
+        # Check if we have any data in the database
+        conn = sqlite3.connect(DBPATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM detections")
+        total_count = cursor.fetchone()[0]
+        print(f"Total records in database: {total_count}", flush=True)
+        
+        # Check if we have data for this specific date
+        cursor.execute("SELECT COUNT(*) FROM detections WHERE DATE(detection_time) = ?", (date,))
+        date_count = cursor.fetchone()[0]
+        print(f"Records for {date}: {date_count}", flush=True)
+        
+        # Get some sample records if they exist
+        cursor.execute("SELECT * FROM detections WHERE DATE(detection_time) = ? LIMIT 3", (date,))
+        samples = cursor.fetchall()
+        if samples:
+            print(f"Sample records for {date}:", flush=True)
+            for sample in samples:
+                print(f"  {sample}", flush=True)
+        
+        conn.close()
+        
         date_obj = datetime.strptime(date, '%Y-%m-%d')
         summary = get_daily_summary(date_obj)
+        print(f"Summary data: {summary}", flush=True)
         return jsonify(summary)
-    except ValueError:
+    except ValueError as e:
+        print(f"Error processing date: {e}", flush=True)
         abort(400, description="Invalid date format")
+    except Exception as e:
+        print(f"Error getting daily summary: {e}", flush=True)
+        abort(500, description="Internal server error")
 
 @app.route('/api/detections/by-hour/<date>/<int:hour>')
 def api_detections_by_hour(date, hour):

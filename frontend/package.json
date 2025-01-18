@@ -19,16 +19,12 @@
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
   },
-  "peerDependencies": {
-    "echarts": "^5.4.3"
-  },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/aspect-ratio": "^0.4.2",
     "@tailwindcss/typography": "^0.5.10",
     "@types/node": "^22.10.7",
     "@types/date-fns": "^2.6.0",
-    "@types/echarts": "^4.9.22",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/tsconfig": "^0.7.0",
     "autoprefixer": "^10.4.20",
