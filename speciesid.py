@@ -201,7 +201,18 @@ def on_message(client, userdata, message):
                         score = category.score
                         display_name = category.display_name
                         category_name = category.category_name
-                        print(f"Classification result - Species: {display_name}, Score: {score:.4f}", flush=True)
+                        
+                        # Debug category object
+                        print("\nCategory details:", flush=True)
+                        print(f"Index: {index}", flush=True)
+                        print(f"Score: {score}", flush=True)
+                        print(f"Display name: {display_name}", flush=True)
+                        print(f"Category name: {category_name}", flush=True)
+                        print(f"Full category object: {category}", flush=True)
+                        
+                        # Try to get common name from category
+                        common_name = category_name if category_name else display_name.split(',')[0]
+                        print(f"Using common name: {common_name}", flush=True)
                     except Exception as e:
                         print(f"Error during classification: {str(e)}", flush=True)
                         import traceback
@@ -233,13 +244,13 @@ def on_message(client, userdata, message):
                         cursor.execute("""  
                             INSERT INTO detections (detection_time, detection_index, score,  
                             display_name, category_name, frigate_event, camera_name) VALUES (?, ?, ?, ?, ?, ?, ?)  
-                            """, (formatted_start_time, index, score, display_name, category_name, frigate_event, after_data['camera']))
-                        set_sublabel(frigate_url, frigate_event, get_common_name(display_name))
+                            """, (formatted_start_time, index, score, display_name, common_name, frigate_event, after_data['camera']))
+                        set_sublabel(frigate_url, frigate_event, common_name)
                         print("Successfully stored new detection", flush=True)
                         
                         # Prepare detection data for WebSocket
                         detection_data = {
-                            "common_name": get_common_name(display_name),
+                            "common_name": common_name,
                             "scientific_name": display_name,
                             "score": score,
                             "frigate_event": frigate_event,
@@ -266,7 +277,7 @@ def on_message(client, userdata, message):
                                 SET detection_time = ?, detection_index = ?, score = ?, display_name = ?, category_name = ?  
                                 WHERE frigate_event = ?  
                                 """, (formatted_start_time, index, score, display_name, category_name, frigate_event))
-                            set_sublabel(frigate_url, frigate_event, get_common_name(display_name))
+                            set_sublabel(frigate_url, frigate_event, common_name)
                         else:
                             print(f"Keeping existing record (new score {score:.2f} <= old score {existing_score:.2f})", flush=True)
 
