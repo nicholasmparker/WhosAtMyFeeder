@@ -159,36 +159,43 @@ This file will be used to jot down notes, ideas, and plans for improving the pro
 
 ## Classification Debugging (2025-01-17)
 
-### Recent Changes
-1. Added detailed image processing logging
-   - Original image dimensions
-   - Post-thumbnail dimensions
-   - Post-padding dimensions
-   - Input array shape, dtype, and range
+### Recent Changes (2025-01-18)
+1. Added detailed TensorFlow model output logging
+   - Full category object inspection
+   - Display name and category name analysis
+   - Better common name extraction
+   - Improved error tracing
 
-2. Improved TFLite model configuration
-   - Using threshold from config (0.7)
-   - Showing top 5 matches
-   - Added threshold logging at startup
+2. Development workflow improvements
+   - Added hot reloading for Python files
+   - Mounted source files in Docker
+   - Flask debug mode enabled
+   - Uvicorn auto-reload configured
 
-3. Enhanced error handling
-   - Empty classifications check
-   - Empty categories check
-   - Better error tracing
-   - More detailed logging throughout process
+3. Fixed weather patterns endpoint
+   - Proper cursor initialization
+   - Improved SQLite datetime handling
+   - Better error messages
+   - Added data validation checks
+
+4. Enhanced error handling
+   - More detailed error logging
+   - Better error messages in UI
+   - Improved error recovery
+   - Full stack traces in logs
 
 ### Next Steps
 1. Monitor logs for:
-   - Image preprocessing accuracy
-   - Model input validation
-   - Classification confidence scores
+   - TensorFlow model name fields
+   - Common name vs scientific name handling
+   - Classification confidence patterns
    - Any error patterns
 
 2. Potential areas to investigate:
-   - Image preprocessing quality
-   - Model input requirements
-   - Confidence threshold tuning
-   - Classification accuracy metrics
+   - Model output structure
+   - Name field mappings
+   - Error handling improvements
+   - Performance optimizations
 
 ## Technical Debt to Address
 
