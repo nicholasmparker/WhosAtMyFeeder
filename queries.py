@@ -16,8 +16,9 @@ def get_common_name(scientific_name):
     if result:
         return result[0]
     else:
-        print ("No common name for: " + scientific_name, flush=True)
-        return "No common name found."
+        print(f"\nMissing bird in local database: {scientific_name}", flush=True)
+        print("Consider adding this bird to birdnames table if it's common in your area", flush=True)
+        return f"Unknown Bird ({scientific_name})"
 
 
 def recent_detections(num_detections):

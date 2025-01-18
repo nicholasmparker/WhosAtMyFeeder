@@ -194,13 +194,8 @@ def api_weather_patterns():
         species = request.args.get('species', type=str)
         days = request.args.get('days', default=30, type=int)
         
-        patterns = weather_service.get_weather_patterns(species, days)
-        insights = weather_service.generate_insights(species)
-        
-        return jsonify({
-            'patterns': patterns,
-            'insights': insights
-        })
+        result = weather_service.get_weather_patterns(species, days)
+        return jsonify(result)
     except Exception as e:
         abort(500, description=str(e))
 

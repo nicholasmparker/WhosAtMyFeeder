@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class WeatherService:
-    def __init__(self, config_path='./config/config.yml', db_path='./data/speciesid.db'):
+    def __init__(self, config_path='config/config.yml', db_path='data/speciesid.db'):
         self.db_path = db_path
         self.config = self._load_config(config_path)
         self.owm = OWM(self.config['weather']['api_key'])
@@ -18,6 +18,35 @@ class WeatherService:
         self.lat = self.config['weather']['location']['lat']
         self.lon = self.config['weather']['location']['lon']
         self.units = self.config['weather'].get('units', 'metric')  # Default to metric if not specified
+        self._verify_database()
+
+    def _verify_database(self):
+        """Verify that the database exists and has the required tables."""
+        try:
+            with self._get_db_connection() as conn:
+                cursor = conn.cursor()
+                # Check if weather_data table exists
+                cursor.execute("""
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name='weather_data'
+                """)
+                if not cursor.fetchone():
+                    logger.error("weather_data table does not exist in database")
+                    raise Exception("Required table 'weather_data' not found in database")
+                
+                # Check if detection_weather table exists
+                cursor.execute("""
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name='detection_weather'
+                """)
+                if not cursor.fetchone():
+                    logger.error("detection_weather table does not exist in database")
+                    raise Exception("Required table 'detection_weather' not found in database")
+                
+                logger.info("Database verification successful - all required tables exist")
+        except Exception as e:
+            logger.error(f"Database verification failed: {str(e)}")
+            raise
 
     def _load_config(self, config_path):
         """Load configuration from YAML file."""
@@ -26,7 +55,16 @@ class WeatherService:
 
     def _get_db_connection(self):
         """Create a database connection."""
-        return sqlite3.connect(self.db_path)
+        try:
+            logger.info(f"Attempting to connect to database at: {self.db_path}")
+            conn = sqlite3.connect(self.db_path)
+            logger.info("Database connection successful")
+            return conn
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            logger.error(f"Database connection error: {str(e)}\nTraceback:\n{error_details}")
+            raise
 
     def fetch_current_weather(self):
         """Fetch current weather data and store it in the database."""
@@ -155,86 +193,127 @@ class WeatherService:
 
     def get_weather_patterns(self, species=None, days=30):
         """Analyze weather patterns during bird activity."""
-        species_clause = "AND d.display_name = ?" if species else ""
-        params = [days]
-        if species:
-            params.append(species)
-
-        query = f"""
-        WITH detection_counts AS (
-            SELECT 
-                w.weather_condition,
-                w.temperature,
-                w.wind_speed,
-                COUNT(d.id) as detection_count,
-                COUNT(d.id) * 100.0 / SUM(COUNT(d.id)) OVER () as percentage
-            FROM weather_data w
-            LEFT JOIN detection_weather dw ON w.id = dw.weather_id
-            LEFT JOIN detections d ON dw.detection_id = d.id
-            WHERE w.timestamp >= date('now', ? || ' days')
-            {species_clause}
-            GROUP BY w.weather_condition, 
-                     ROUND(w.temperature), 
-                     ROUND(w.wind_speed)
-            HAVING detection_count > 0
-        )
-        SELECT 
-            weather_condition,
-            ROUND(AVG(temperature), 1) as avg_temp,
-            ROUND(AVG(wind_speed), 1) as avg_wind,
-            SUM(detection_count) as total_detections,
-            ROUND(AVG(percentage), 1) as activity_percentage
-        FROM detection_counts
-        GROUP BY weather_condition
-        ORDER BY total_detections DESC
-        """
-
         with self._get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(query, params)
-            columns = [desc[0] for desc in cursor.description]
-            results = [dict(zip(columns, row)) for row in cursor.fetchall()]
-            insights = self.generate_insights(species)
-            return {
-                'patterns': results,
-                'insights': insights,
-                'units': self.units
-            }
+            try:
+                cursor = conn.cursor()
+                species_clause = "AND d.display_name = ?" if species else ""
+                params = [days]
+                if species:
+                    params.append(species)
 
-    def generate_insights(self, species=None):
-        """Generate human-readable insights about weather patterns."""
-        patterns = self.get_weather_patterns(species)
-        if not patterns:
-            return ["Not enough data to generate insights."]
+                # First check if we have any weather data
+                check_query = """
+                SELECT COUNT(*) FROM weather_data w
+                WHERE datetime(w.timestamp) >= datetime('now', '-' || ? || ' days')
+                """
+                cursor.execute(check_query, [days])
+                weather_count = cursor.fetchone()[0]
+                
+                if weather_count == 0:
+                    logger.info("No weather data found for the specified period")
+                    return {
+                        'patterns': [],
+                        'insights': ["No weather data available for the specified period."],
+                        'units': self.units
+                    }
 
-        insights = []
-        
-        # Most active conditions
-        top_condition = patterns[0]
-        insights.append(
-            f"Birds are most active during {top_condition['weather_condition']} conditions "
-            f"({top_condition['activity_percentage']}% of activity)"
-        )
+                # Then check if we have any detections
+                check_query = """
+                SELECT COUNT(*) FROM detections d
+                JOIN detection_weather dw ON d.id = dw.detection_id
+                JOIN weather_data w ON dw.weather_id = w.id
+                WHERE datetime(w.timestamp) >= datetime('now', '-' || ? || ' days')
+                """
+                params = [days]
+                if species:
+                    check_query += " AND d.display_name = ?"
+                    params.append(species)
+                    
+                cursor.execute(check_query, params)
+                detection_count = cursor.fetchone()[0]
+                
+                if detection_count == 0:
+                    logger.info("No detections found for the specified period")
+                    return {
+                        'patterns': [],
+                        'insights': ["No bird activity detected during this period."],
+                        'units': self.units
+                    }
 
-        # Temperature insights
-        temp_range = self._analyze_temperature_range(species)
-        if temp_range:
-            unit = '°F' if self.units == 'imperial' else '°C'
-            insights.append(
-                f"Preferred temperature range: {temp_range['min_temp']}{unit} to {temp_range['max_temp']}{unit} "
-                f"({temp_range['activity_percentage']}% of activity)"
-            )
+                # If we have both weather data and detections, proceed with the main query
+                query = f"""
+                SELECT 
+                    w.weather_condition,
+                    ROUND(AVG(w.temperature), 1) as avg_temp,
+                    ROUND(AVG(w.wind_speed), 1) as avg_wind,
+                    COUNT(d.id) as total_detections,
+                    ROUND(COUNT(d.id) * 100.0 / SUM(COUNT(d.id)) OVER (), 1) as activity_percentage
+                FROM weather_data w
+                LEFT JOIN detection_weather dw ON w.id = dw.weather_id
+                LEFT JOIN detections d ON dw.detection_id = d.id
+                WHERE datetime(w.timestamp) >= datetime('now', '-' || ? || ' days')
+                {species_clause}
+                GROUP BY w.weather_condition
+                HAVING total_detections > 0
+                ORDER BY total_detections DESC
+                """
 
-        # Wind insights
-        wind_impact = self._analyze_wind_impact(species)
-        if wind_impact:
-            speed_unit = 'mph' if self.units == 'imperial' else 'm/s'
-            insights.append(
-                f"Activity {wind_impact['trend']} when wind speeds are "
-                f"{wind_impact['threshold']} {speed_unit}"
-            )
+                cursor.execute(query, params)
+                columns = [desc[0] for desc in cursor.description]
+                results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                
+                if not results:
+                    return {
+                        'patterns': [],
+                        'insights': ["Not enough data to generate insights."],
+                        'units': self.units
+                    }
 
-        return insights
+                insights = []
+                
+                # Most active conditions
+                top_condition = results[0]
+                insights.append(
+                    f"Birds are most active during {top_condition['weather_condition']} conditions "
+                    f"({top_condition['activity_percentage']}% of activity)"
+                )
+
+                # Temperature insights
+                temp_range = self._analyze_temperature_range(species)
+                if temp_range:
+                    unit = '°F' if self.units == 'imperial' else '°C'
+                    insights.append(
+                        f"Preferred temperature range: {temp_range['min_temp']}{unit} to {temp_range['max_temp']}{unit} "
+                        f"({temp_range['activity_percentage']}% of activity)"
+                    )
+
+                # Wind insights
+                wind_impact = self._analyze_wind_impact(species)
+                if wind_impact:
+                    speed_unit = 'mph' if self.units == 'imperial' else 'm/s'
+                    insights.append(
+                        f"Activity {wind_impact['trend']} when wind speeds are "
+                        f"{wind_impact['threshold']} {speed_unit}"
+                    )
+
+                return {
+                    'patterns': results,
+                    'insights': insights,
+                    'units': self.units
+                }
+
+            except Exception as e:
+                import traceback
+                error_details = traceback.format_exc()
+                logger.error(f"Error getting weather patterns: {str(e)}\nTraceback:\n{error_details}")
+                # Log the query and parameters for debugging
+                logger.error(f"Failed query: {query}")
+                logger.error(f"Query parameters: {params}")
+                return {
+                    'patterns': [],
+                    'insights': [f"Error analyzing weather patterns: {str(e)}"],
+                    'units': self.units
+                }
 
     def _analyze_temperature_range(self, species=None):
         """Analyze preferred temperature ranges."""
@@ -252,7 +331,7 @@ class WeatherService:
         FROM weather_data w
         JOIN detection_weather dw ON w.id = dw.weather_id
         JOIN detections d ON dw.detection_id = d.id
-        WHERE w.timestamp >= date('now', ? || ' days')
+        WHERE datetime(w.timestamp) >= datetime('now', '-' || ? || ' days')
         {species_clause}
         GROUP BY 
             ROUND((temperature - 5) / 10) * 10
@@ -295,7 +374,7 @@ class WeatherService:
             FROM weather_data w
             JOIN detection_weather dw ON w.id = dw.weather_id
             JOIN detections d ON dw.detection_id = d.id
-            WHERE w.timestamp >= date('now', ? || ' days')
+            WHERE datetime(w.timestamp) >= datetime('now', '-' || ? || ' days')
             {species_clause}
             GROUP BY wind_category
         )

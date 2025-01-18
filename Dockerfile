@@ -43,9 +43,9 @@ RUN echo '#!/bin/bash\n\
 mkdir -p /app/data\n\
 sqlite3 /app/data/speciesid.db < init_db.sql\n\
 cd frontend && npm install && npm run dev -- --host 0.0.0.0 --port 5173 & \
-python websocket_server.py & \
-python webui.py & \
-python speciesid.py\n\
+PYTHONPATH=/app python -m uvicorn websocket_server:app --host 0.0.0.0 --port 8765 --reload & \
+PYTHONPATH=/app FLASK_APP=webui.py FLASK_ENV=development FLASK_DEBUG=1 python -m flask run --host=0.0.0.0 --port=7766 --reload & \
+PYTHONPATH=/app python speciesid.py\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
 # Run the startup script

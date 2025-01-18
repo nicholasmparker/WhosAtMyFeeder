@@ -50,7 +50,17 @@ INSERT OR REPLACE INTO birdnames (scientific_name, common_name) VALUES
     ('Cardinalis cardinalis', 'Northern Cardinal'),
     ('Cyanocitta cristata', 'Blue Jay'),
     ('Poecile atricapillus', 'Black-capped Chickadee'),
-    ('Sitta carolinensis', 'White-breasted Nuthatch');
+    ('Sitta carolinensis', 'White-breasted Nuthatch'),
+    ('Haemorhous mexicanus', 'House Finch'),
+    ('Melospiza melodia', 'Song Sparrow'),
+    ('Spinus tristis', 'American Goldfinch'),
+    ('Zenaida macroura', 'Mourning Dove'),
+    ('Junco hyemalis', 'Dark-eyed Junco'),
+    ('Baeolophus bicolor', 'Tufted Titmouse'),
+    ('Melanerpes carolinus', 'Red-bellied Woodpecker'),
+    ('Dryobates pubescens', 'Downy Woodpecker'),
+    ('Pipilo erythrophthalmus', 'Eastern Towhee'),
+    ('Thryothorus ludovicianus', 'Carolina Wren');
 
 -- Insert sample detections
 INSERT INTO detections (detection_time, detection_index, score, display_name, category_name, frigate_event, camera_name)

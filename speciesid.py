@@ -29,34 +29,27 @@ DBPATH = './data/speciesid.db'
 
 
 def classify(image):
-    print("\nClassification details:", flush=True)
-    print(f"Input array shape: {image.shape}", flush=True)
-    print(f"Input array dtype: {image.dtype}", flush=True)
-    print(f"Input array range: [{image.min()}, {image.max()}]", flush=True)
-    
     try:
-        print("Creating tensor image...", flush=True)
+        print("Starting classification process...", flush=True)
         tensor_image = vision.TensorImage.create_from_array(image)
-        print("Tensor image created successfully", flush=True)
+        print("Created tensor image", flush=True)
         
-        print("Running TFLite classification...", flush=True)
+        # Add a small delay to ensure tensor image is fully created
+        time.sleep(0.1)
+        
         result = classifier.classify(tensor_image)
-        print("TFLite classification completed", flush=True)
+        print("Classification completed", flush=True)
         
         if not result.classifications:
-            print("Warning: No classifications returned", flush=True)
+            print("No classifications returned", flush=True)
             return []
-            
-        if not result.classifications[0].categories:
-            print("Warning: No categories in first classification", flush=True)
-            return []
-            
+        
         return result.classifications[0].categories
     except Exception as e:
         print(f"Error in classify function: {str(e)}", flush=True)
         import traceback
         print(traceback.format_exc(), flush=True)
-        raise
+        return []
 
 
 def on_connect(client, userdata, flags, rc):
@@ -98,6 +91,11 @@ def on_disconnect(client, userdata, rc):
 def set_sublabel(frigate_url, frigate_event, sublabel):
     post_url = frigate_url + "/api/events/" + frigate_event + "/sub_label"
     print(f"Setting Frigate sublabel at URL: {post_url}", flush=True)
+
+    # If it's an unknown bird, use the scientific name (truncated) instead of "Unknown Bird"
+    if sublabel.startswith("Unknown Bird ("):
+        scientific_name = sublabel[13:-1]  # Extract name between parentheses
+        sublabel = scientific_name
 
     # frigate limits sublabels to 20 characters currently
     if len(sublabel) > 20:
@@ -203,10 +201,7 @@ def on_message(client, userdata, message):
                         score = category.score
                         display_name = category.display_name
                         category_name = category.category_name
-                        print(f"Classification completed successfully", flush=True)
-                        print(f"Raw results:", flush=True)
-                        for cat in categories:
-                            print(f"  {cat.display_name}: {cat.score:.4f}", flush=True)
+                        print(f"Classification result - Species: {display_name}, Score: {score:.4f}", flush=True)
                     except Exception as e:
                         print(f"Error during classification: {str(e)}", flush=True)
                         import traceback
@@ -220,55 +215,63 @@ def on_message(client, userdata, message):
                     start_time = datetime.fromtimestamp(after_data['start_time'])
                     formatted_start_time = start_time.strftime("%Y-%m-%d %H:%M:%S")
 
-                    if index != 964 and score > config['classification']['threshold']:
-                        cursor = conn.cursor()
-                        cursor.execute("SELECT * FROM detections WHERE frigate_event = ?", (frigate_event,))
-                        result = cursor.fetchone()
+                    if index == 964:
+                        print(f"\nSkipping detection - Index 964 indicates non-bird classification", flush=True)
+                        return
+                        
+                    if score <= config['classification']['threshold']:
+                        print(f"\nSkipping detection - Score {score:.4f} below threshold {config['classification']['threshold']}", flush=True)
+                        return
+                        
+                    print(f"\nDetection passed threshold checks - proceeding with database storage", flush=True)
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT * FROM detections WHERE frigate_event = ?", (frigate_event,))
+                    result = cursor.fetchone()
 
-                        if result is None:
-                            print("\nStoring new detection in database...", flush=True)
+                    if result is None:
+                        print("\nStoring new detection in database...", flush=True)
+                        cursor.execute("""  
+                            INSERT INTO detections (detection_time, detection_index, score,  
+                            display_name, category_name, frigate_event, camera_name) VALUES (?, ?, ?, ?, ?, ?, ?)  
+                            """, (formatted_start_time, index, score, display_name, category_name, frigate_event, after_data['camera']))
+                        set_sublabel(frigate_url, frigate_event, get_common_name(display_name))
+                        print("Successfully stored new detection", flush=True)
+                        
+                        # Prepare detection data for WebSocket
+                        detection_data = {
+                            "common_name": get_common_name(display_name),
+                            "scientific_name": display_name,
+                            "score": score,
+                            "frigate_event": frigate_event,
+                            "timestamp": formatted_start_time
+                        }
+                        
+                        # Send to WebSocket server asynchronously
+                        try:
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            loop.run_until_complete(notify_websocket(detection_data))
+                        except Exception as e:
+                            print(f"Error sending WebSocket notification: {str(e)}", flush=True)
+                        finally:
+                            if loop:
+                                loop.close()
+                    else:
+                        print("\nChecking existing detection...", flush=True)
+                        existing_score = result[3]
+                        if score > existing_score:
+                            print(f"Updating record (new score {score:.2f} > old score {existing_score:.2f})", flush=True)
                             cursor.execute("""  
-                                INSERT INTO detections (detection_time, detection_index, score,  
-                                display_name, category_name, frigate_event, camera_name) VALUES (?, ?, ?, ?, ?, ?, ?)  
-                                """, (formatted_start_time, index, score, display_name, category_name, frigate_event, after_data['camera']))
+                                UPDATE detections  
+                                SET detection_time = ?, detection_index = ?, score = ?, display_name = ?, category_name = ?  
+                                WHERE frigate_event = ?  
+                                """, (formatted_start_time, index, score, display_name, category_name, frigate_event))
                             set_sublabel(frigate_url, frigate_event, get_common_name(display_name))
-                            print("Successfully stored new detection", flush=True)
-                            
-                            # Prepare detection data for WebSocket
-                            detection_data = {
-                                "common_name": get_common_name(display_name),
-                                "scientific_name": display_name,
-                                "score": score,
-                                "frigate_event": frigate_event,
-                                "timestamp": formatted_start_time
-                            }
-                            
-                            # Send to WebSocket server asynchronously
-                            try:
-                                loop = asyncio.new_event_loop()
-                                asyncio.set_event_loop(loop)
-                                loop.run_until_complete(notify_websocket(detection_data))
-                            except Exception as e:
-                                print(f"Error sending WebSocket notification: {str(e)}", flush=True)
-                            finally:
-                                if loop:
-                                    loop.close()
                         else:
-                            print("\nChecking existing detection...", flush=True)
-                            existing_score = result[3]
-                            if score > existing_score:
-                                print(f"Updating record (new score {score:.2f} > old score {existing_score:.2f})", flush=True)
-                                cursor.execute("""  
-                                    UPDATE detections  
-                                    SET detection_time = ?, detection_index = ?, score = ?, display_name = ?, category_name = ?  
-                                    WHERE frigate_event = ?  
-                                    """, (formatted_start_time, index, score, display_name, category_name, frigate_event))
-                                set_sublabel(frigate_url, frigate_event, get_common_name(display_name))
-                            else:
-                                print(f"Keeping existing record (new score {score:.2f} <= old score {existing_score:.2f})", flush=True)
+                            print(f"Keeping existing record (new score {score:.2f} <= old score {existing_score:.2f})", flush=True)
 
-                        conn.commit()
-                        print("Database transaction complete", flush=True)
+                    conn.commit()
+                    print("Database transaction complete", flush=True)
 
                 else:
                     print(f"Failed to retrieve snapshot. Status: {response.status_code}, Response: {response.text}", flush=True)
@@ -367,17 +370,23 @@ def main():
     load_config()
 
     print("\nInitializing TFLite model...", flush=True)
-    base_options = core.BaseOptions(
-        file_name=config['classification']['model'], use_coral=False, num_threads=4)
-    classification_options = processor.ClassificationOptions(
-        max_results=5, score_threshold=config['classification']['threshold'])  # Use threshold from config
-    options = vision.ImageClassifierOptions(
-        base_options=base_options, classification_options=classification_options)
+    try:
+        base_options = core.BaseOptions(
+            file_name=config['classification']['model'], use_coral=False, num_threads=1)  # Reduced threads to avoid deadlock
+        classification_options = processor.ClassificationOptions(
+            max_results=5, score_threshold=config['classification']['threshold'])
+        options = vision.ImageClassifierOptions(
+            base_options=base_options, classification_options=classification_options)
 
-    global classifier
-    classifier = vision.ImageClassifier.create_from_options(options)
-    print("TFLite model initialized successfully", flush=True)
-    print(f"Classification threshold: {config['classification']['threshold']}", flush=True)
+        global classifier
+        classifier = vision.ImageClassifier.create_from_options(options)
+        print("TFLite model initialized successfully", flush=True)
+        print(f"Classification threshold: {config['classification']['threshold']}", flush=True)
+    except Exception as e:
+        print(f"Error initializing TFLite model: {str(e)}", flush=True)
+        import traceback
+        print(traceback.format_exc(), flush=True)
+        raise
 
     setupdb()
     

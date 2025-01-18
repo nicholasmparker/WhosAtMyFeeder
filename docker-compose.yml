@@ -9,6 +9,11 @@ services:
       - ./data:/data
       - ./frontend:/app/frontend  # Mount frontend files for development
       - ./static:/app/static      # Mount static files
+      - ./webui.py:/app/webui.py  # Mount Python files for hot reload
+      - ./speciesid.py:/app/speciesid.py
+      - ./weather_service.py:/app/weather_service.py
+      - ./websocket_server.py:/app/websocket_server.py
+      - ./queries.py:/app/queries.py
     ports:
       - 7766:7766  # Flask backend
       - 5173:5173  # Vite dev server
