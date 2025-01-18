@@ -12,3 +12,4 @@ websockets==12.0
 python-multipart==0.0.6
 aiohttp==3.9.1
 pyowm>=3.3.0  # OpenWeatherMap Python client
+flask-cors==4.0.0  # CORS support for Flask

@@ -41,11 +41,10 @@ ENV PYTHONUNBUFFERED=1
 # Create a startup script
 RUN echo '#!/bin/bash\n\
 mkdir -p /app/data\n\
-if [ ! -f /app/data/speciesid.db ]; then\n\
-  sqlite3 /app/data/speciesid.db < init_db.sql\n\
-fi\n\
+sqlite3 /app/data/speciesid.db < init_db.sql\n\
 cd frontend && npm install && npm run dev -- --host 0.0.0.0 --port 5173 & \
 python websocket_server.py & \
+python webui.py & \
 python speciesid.py\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 

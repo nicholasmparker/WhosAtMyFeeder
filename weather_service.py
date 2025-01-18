@@ -17,6 +17,7 @@ class WeatherService:
         self.mgr = self.owm.weather_manager()
         self.lat = self.config['weather']['location']['lat']
         self.lon = self.config['weather']['location']['lon']
+        self.units = self.config['weather'].get('units', 'metric')  # Default to metric if not specified
 
     def _load_config(self, config_path):
         """Load configuration from YAML file."""
@@ -34,10 +35,12 @@ class WeatherService:
             weather = observation.weather
             
             # Extract weather data
+            temp_unit = 'fahrenheit' if self.units == 'imperial' else 'celsius'
             data = {
                 'timestamp': datetime.utcnow(),
-                'temperature': weather.temperature('celsius').get('temp'),
-                'feels_like': weather.temperature('celsius').get('feels_like'),
+                'temperature': weather.temperature(temp_unit).get('temp'),
+                'feels_like': weather.temperature(temp_unit).get('feels_like'),
+                'units': self.units,  # Include units in response
                 'humidity': weather.humidity,
                 'pressure': weather.pressure['press'],
                 'wind_speed': weather.wind()['speed'],
@@ -51,7 +54,10 @@ class WeatherService:
             # Store in database
             self._store_weather_data(data)
             logger.info(f"Stored weather data: {data}")
-            return data
+            return {
+                **data,
+                'units': self.units  # Include units in response
+            }
             
         except Exception as e:
             logger.error(f"Error fetching weather data: {e}")
@@ -142,7 +148,10 @@ class WeatherService:
             cursor.execute(query, params)
             columns = [desc[0] for desc in cursor.description]
             results = [dict(zip(columns, row)) for row in cursor.fetchall()]
-            return results
+            return {
+                'results': results,
+                'units': self.units
+            }
 
     def get_weather_patterns(self, species=None, days=30):
         """Analyze weather patterns during bird activity."""
@@ -185,7 +194,12 @@ class WeatherService:
             cursor.execute(query, params)
             columns = [desc[0] for desc in cursor.description]
             results = [dict(zip(columns, row)) for row in cursor.fetchall()]
-            return results
+            insights = self.generate_insights(species)
+            return {
+                'patterns': results,
+                'insights': insights,
+                'units': self.units
+            }
 
     def generate_insights(self, species=None):
         """Generate human-readable insights about weather patterns."""
@@ -205,17 +219,19 @@ class WeatherService:
         # Temperature insights
         temp_range = self._analyze_temperature_range(species)
         if temp_range:
+            unit = '°F' if self.units == 'imperial' else '°C'
             insights.append(
-                f"Preferred temperature range: {temp_range['min_temp']}°C to {temp_range['max_temp']}°C "
+                f"Preferred temperature range: {temp_range['min_temp']}{unit} to {temp_range['max_temp']}{unit} "
                 f"({temp_range['activity_percentage']}% of activity)"
             )
 
         # Wind insights
         wind_impact = self._analyze_wind_impact(species)
         if wind_impact:
+            speed_unit = 'mph' if self.units == 'imperial' else 'm/s'
             insights.append(
                 f"Activity {wind_impact['trend']} when wind speeds are "
-                f"{wind_impact['threshold']} m/s"
+                f"{wind_impact['threshold']} {speed_unit}"
             )
 
         return insights
@@ -263,12 +279,16 @@ class WeatherService:
         if species:
             params.append(species)
 
+        # Wind speed thresholds (m/s for metric, mph for imperial)
+        low_threshold = 11 if self.units == 'imperial' else 5
+        moderate_threshold = 22 if self.units == 'imperial' else 10
+
         query = f"""
         WITH wind_activity AS (
             SELECT 
                 CASE 
-                    WHEN wind_speed <= 5 THEN 'low'
-                    WHEN wind_speed <= 10 THEN 'moderate'
+                    WHEN wind_speed <= {low_threshold} THEN 'low'
+                    WHEN wind_speed <= {moderate_threshold} THEN 'moderate'
                     ELSE 'high'
                 END as wind_category,
                 COUNT(d.id) as detection_count
@@ -293,10 +313,11 @@ class WeatherService:
             results = cursor.fetchall()
             if results:
                 top_category = results[0]
+                speed_unit = 'mph' if self.units == 'imperial' else 'm/s'
                 if top_category[0] == 'low':
-                    return {'trend': 'peaks', 'threshold': 'below 5'}
+                    return {'trend': 'peaks', 'threshold': f'below {low_threshold} {speed_unit}'}
                 elif top_category[0] == 'moderate':
-                    return {'trend': 'is optimal', 'threshold': 'between 5 and 10'}
+                    return {'trend': 'is optimal', 'threshold': f'between {low_threshold} and {moderate_threshold} {speed_unit}'}
                 else:
-                    return {'trend': 'continues', 'threshold': 'above 10'}
+                    return {'trend': 'continues', 'threshold': f'above {moderate_threshold} {speed_unit}'}
         return None

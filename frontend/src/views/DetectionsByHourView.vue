@@ -152,11 +152,34 @@ const currentSnapshotUrl = ref('')
 const currentClipUrl = ref('')
 const isModalOpen = ref(false)
 
+const getCurrentDate = (): string => {
+  const today = new Date()
+  return today.toISOString().split('T')[0]
+}
+
+const getCurrentHour = (): string => {
+  const now = new Date()
+  return now.getHours().toString()
+}
+
+const date = computed((): string => {
+  const routeDate = Array.isArray(route.params.date) 
+    ? route.params.date[0] 
+    : (route.params.date as string | undefined)
+  return routeDate || getCurrentDate()
+})
+
+const hour = computed((): string => {
+  const routeHour = Array.isArray(route.params.hour)
+    ? route.params.hour[0]
+    : (route.params.hour as string | undefined)
+  return routeHour || getCurrentHour()
+})
+
 const formattedDateTime = computed(() => {
-  const date = new Date(route.params.date as string)
-  const hour = parseInt(route.params.hour as string)
-  date.setHours(hour)
-  return date.toLocaleString('en-US', {
+  const dateObj = new Date(date.value)
+  dateObj.setHours(parseInt(hour.value))
+  return dateObj.toLocaleString('en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -194,7 +217,7 @@ const closeModal = () => {
 
 onMounted(async () => {
   try {
-    const response = await axios.get(`/api/detections/by-hour/${route.params.date}/${route.params.hour}`)
+    const response = await axios.get(`/api/detections/by-hour/${date.value}/${hour.value}`)
     detections.value = response.data
   } catch (error) {
     console.error('Failed to fetch detections:', error)

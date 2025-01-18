@@ -49,10 +49,10 @@
                     {{ pattern.weather_condition }}
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                    {{ pattern.avg_temp }}°C
+                    {{ pattern.avg_temp }}°{{ temperatureUnit }}
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                    {{ pattern.avg_wind }} m/s
+                    {{ pattern.avg_wind }} {{ windSpeedUnit }}
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                     {{ pattern.activity_percentage }}%
@@ -95,7 +95,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 
 interface Species {
@@ -117,10 +117,14 @@ const insights = ref<string[]>([])
 const selectedSpecies = ref('')
 const selectedDays = ref(30)
 const availableSpecies = ref<Species[]>([])
+const units = ref<'imperial' | 'metric'>('imperial') // Default to imperial, will be set from API response
+
+// Computed units based on the system
+const temperatureUnit = computed(() => units.value === 'imperial' ? 'F' : 'C')
+const windSpeedUnit = computed(() => units.value === 'imperial' ? 'mph' : 'm/s')
 
 const fetchSpecies = async () => {
   try {
-    // This would need to be implemented in the backend
     const response = await axios.get('/api/species')
     availableSpecies.value = response.data
   } catch (error) {

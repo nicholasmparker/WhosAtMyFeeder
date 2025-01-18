@@ -63,16 +63,22 @@ VALUES
     ('2025-01-17 15:00:00', 6, 0.94, 'Cardinalis cardinalis', 'bird', 'event6', 'Griffin'),
     ('2025-01-17 15:15:00', 7, 0.87, 'Cyanocitta cristata', 'bird', 'event7', 'Griffin');
 
--- Insert sample weather data
+-- Insert sample weather data (temperatures in Fahrenheit for imperial units)
 INSERT INTO weather_data (timestamp, temperature, feels_like, humidity, pressure, wind_speed, wind_direction, precipitation, cloud_cover, visibility, weather_condition)
 VALUES 
-    ('2025-01-17 10:00:00', 15.5, 14.2, 65, 1013, 3.5, 180, 0.0, 25, 10000, 'partly cloudy'),
-    ('2025-01-17 11:00:00', 16.8, 15.5, 62, 1013, 4.0, 185, 0.0, 30, 10000, 'partly cloudy'),
-    ('2025-01-17 14:00:00', 19.2, 18.5, 58, 1012, 4.5, 190, 0.0, 45, 10000, 'partly cloudy'),
-    ('2025-01-17 15:00:00', 19.5, 18.8, 57, 1012, 4.2, 195, 0.0, 40, 10000, 'partly cloudy');
+    ('2025-01-17 10:00:00', 60.0, 58.0, 65, 1013, 8.0, 180, 0.0, 25, 10000, 'partly cloudy'),
+    ('2025-01-17 10:15:00', 61.0, 59.0, 64, 1013, 7.5, 182, 0.0, 28, 10000, 'partly cloudy'),
+    ('2025-01-17 11:00:00', 63.0, 61.0, 62, 1013, 9.0, 185, 0.0, 30, 10000, 'partly cloudy'),
+    ('2025-01-17 14:30:00', 68.0, 66.0, 58, 1012, 10.0, 190, 0.0, 45, 10000, 'clear sky'),
+    ('2025-01-17 14:45:00', 69.0, 67.0, 57, 1012, 9.5, 192, 0.0, 42, 10000, 'clear sky'),
+    ('2025-01-17 15:00:00', 70.0, 68.0, 57, 1012, 9.0, 195, 0.0, 40, 10000, 'clear sky'),
+    ('2025-01-17 15:15:00', 70.5, 68.5, 56, 1012, 8.5, 198, 0.0, 38, 10000, 'clear sky');
 
--- Link detections with weather data
+-- Link detections with weather data (using 15-minute intervals for more precise correlation)
 INSERT INTO detection_weather (detection_id, weather_id)
 SELECT d.id, w.id
 FROM detections d
-JOIN weather_data w ON strftime('%Y-%m-%d %H:00:00', d.detection_time) = strftime('%Y-%m-%d %H:00:00', w.timestamp);
+JOIN weather_data w 
+WHERE strftime('%Y-%m-%d %H:%M', d.detection_time) = strftime('%Y-%m-%d %H:%M', w.timestamp)
+   OR (strftime('%Y-%m-%d %H', d.detection_time) = strftime('%Y-%m-%d %H', w.timestamp)
+       AND abs(strftime('%M', d.detection_time) - strftime('%M', w.timestamp)) <= 15);

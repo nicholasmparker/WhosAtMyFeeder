@@ -20,12 +20,12 @@
         <div v-else-if="currentWeather" class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div class="text-center">
             <div class="text-sm text-gray-500">Temperature</div>
-            <div class="mt-1 text-xl font-semibold">{{ currentWeather.temperature }}°C</div>
-            <div class="text-sm text-gray-500">Feels like {{ currentWeather.feels_like }}°C</div>
+            <div class="mt-1 text-xl font-semibold">{{ currentWeather.temperature }}°{{ temperatureUnit }}</div>
+            <div class="text-sm text-gray-500">Feels like {{ currentWeather.feels_like }}°{{ temperatureUnit }}</div>
           </div>
           <div class="text-center">
             <div class="text-sm text-gray-500">Wind</div>
-            <div class="mt-1 text-xl font-semibold">{{ currentWeather.wind_speed }} m/s</div>
+            <div class="mt-1 text-xl font-semibold">{{ currentWeather.wind_speed }} {{ windSpeedUnit }}</div>
             <div class="text-sm text-gray-500">Direction {{ currentWeather.wind_direction }}°</div>
           </div>
           <div class="text-center">
@@ -48,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import WeatherPatternInsights from '@/components/WeatherPatternInsights.vue'
 
@@ -68,12 +68,19 @@ interface CurrentWeather {
 
 const currentWeather = ref<CurrentWeather | null>(null)
 const loadingWeather = ref(true)
+const units = ref<'imperial' | 'metric'>('imperial') // Default to imperial, will be set from API response
+
+// Computed units based on the system
+const temperatureUnit = computed(() => units.value === 'imperial' ? 'F' : 'C')
+const windSpeedUnit = computed(() => units.value === 'imperial' ? 'mph' : 'm/s')
 
 const fetchCurrentWeather = async () => {
   try {
     loadingWeather.value = true
     const response = await axios.get('/api/weather/current')
     currentWeather.value = response.data
+    // The backend should send the units in the response, but for now we'll keep it hardcoded
+    units.value = 'imperial'
   } catch (error) {
     console.error('Failed to fetch current weather:', error)
   } finally {

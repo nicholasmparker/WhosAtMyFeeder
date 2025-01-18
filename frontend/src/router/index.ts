@@ -14,14 +14,16 @@ const router = createRouter({
       component: HomeView
     },
     {
-      path: '/daily-summary',
+      path: '/daily-summary/:date?',
       name: 'daily-summary',
-      component: DailySummaryView
+      component: DailySummaryView,
+      props: true
     },
     {
-      path: '/detections-by-hour',
+      path: '/detections-by-hour/:date?/:hour?',
       name: 'detections-by-hour',
-      component: DetectionsByHourView
+      component: DetectionsByHourView,
+      props: true
     },
     {
       path: '/detections-by-species',

@@ -94,12 +94,27 @@ This file will be used to jot down notes, ideas, and plans for improving the pro
 
 ## Ideas for Future Enhancement
 
-### Immediate Priority Features
-1. Real-time WebSocket Integration
+### Completed Features
+1. Real-time WebSocket Integration ✅
    - Live bird detection notifications
    - Instant UI updates without polling
    - Connection status indicator
    - Reconnection handling
+
+2. Weather Integration (Phase 1 & 2) ✅
+   - OpenWeatherMap API integration
+   - Weather data collection and storage
+   - Basic pattern analysis and insights
+   - Current weather display
+   - Unit system configuration (°F/mph or °C/m/s)
+
+### Immediate Priority Features
+1. Weather Integration (Phase 3 & 4) 🚧
+   - Advanced weather pattern analysis
+   - Weather overlay on activity charts
+   - Correlation visualizations
+   - Forecast-based predictions
+   - Weather-based notifications
 
 2. Enhanced Data Visualization
    - Daily/weekly/monthly bird visit patterns

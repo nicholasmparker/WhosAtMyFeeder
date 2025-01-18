@@ -5,12 +5,14 @@ from datetime import datetime, date
 import yaml
 import requests
 from io import BytesIO
+from flask_cors import CORS
 from queries import recent_detections, get_daily_summary, get_common_name, get_records_for_date_hour
 from queries import get_records_for_scientific_name_and_date, get_earliest_detection_date
 from weather_service import WeatherService
 import os
 
 app = Flask(__name__, static_folder='static/dist', static_url_path='')
+CORS(app)
 config = None
 DBPATH = './data/speciesid.db'
 weather_service = None
@@ -87,6 +89,16 @@ def api_get_common_name(scientific_name):
 def api_earliest_detection_date():
     date = get_earliest_detection_date()
     return jsonify({"date": date})
+
+@app.route('/api/species')
+def api_species():
+    """Get list of all species with their common names."""
+    conn = sqlite3.connect(DBPATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT scientific_name, common_name FROM birdnames")
+    species = [{"scientific_name": row[0], "common_name": row[1]} for row in cursor.fetchall()]
+    conn.close()
+    return jsonify(species)
 
 # Frigate routes
 @app.route('/frigate/<frigate_event>/thumbnail.jpg')
