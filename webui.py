@@ -7,11 +7,13 @@ import requests
 from io import BytesIO
 from queries import recent_detections, get_daily_summary, get_common_name, get_records_for_date_hour
 from queries import get_records_for_scientific_name_and_date, get_earliest_detection_date
+from weather_service import WeatherService
 import os
 
 app = Flask(__name__, static_folder='static/dist', static_url_path='')
 config = None
 DBPATH = './data/speciesid.db'
+weather_service = None
 
 # API Routes
 @app.route('/api/detections/recent')
@@ -140,12 +142,65 @@ def serve_vue_app(path):
     return send_from_directory(dist_dir, 'index.html')
 
 def load_config():
-    global config
+    global config, weather_service
     file_path = './config/config.yml'
     with open(file_path, 'r') as config_file:
         config = yaml.safe_load(config_file)
+    weather_service = WeatherService(file_path, DBPATH)
 
 load_config()
+
+# Weather API endpoints
+@app.route('/api/weather/current')
+def api_current_weather():
+    try:
+        data = weather_service.fetch_current_weather()
+        if data:
+            return jsonify(data)
+        abort(500, description="Failed to fetch weather data")
+    except Exception as e:
+        abort(500, description=str(e))
+
+@app.route('/api/weather/correlation')
+def api_weather_correlation():
+    try:
+        start_date = request.args.get('start_date', type=str)
+        end_date = request.args.get('end_date', type=str)
+        species = request.args.get('species', type=str)
+        
+        if not start_date or not end_date:
+            abort(400, description="start_date and end_date are required")
+            
+        data = weather_service.get_weather_correlation(start_date, end_date, species)
+        return jsonify(data)
+    except Exception as e:
+        abort(500, description=str(e))
+
+@app.route('/api/weather/patterns')
+def api_weather_patterns():
+    try:
+        species = request.args.get('species', type=str)
+        days = request.args.get('days', default=30, type=int)
+        
+        patterns = weather_service.get_weather_patterns(species, days)
+        insights = weather_service.generate_insights(species)
+        
+        return jsonify({
+            'patterns': patterns,
+            'insights': insights
+        })
+    except Exception as e:
+        abort(500, description=str(e))
+
+@app.route('/api/weather/detection/<int:detection_id>')
+def api_detection_weather(detection_id):
+    try:
+        data = weather_service.get_weather_for_detection(detection_id)
+        if data:
+            return jsonify(data)
+        abort(404, description="Weather data not found for this detection")
+    except Exception as e:
+        abort(500, description=str(e))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=7766)

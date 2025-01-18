@@ -12,6 +12,38 @@
             >
               Who's At My Feeder?
             </router-link>
+
+            <!-- Desktop Navigation Links -->
+            <div class="hidden md:flex md:items-center md:ml-6 space-x-4">
+              <router-link 
+                to="/daily-summary" 
+                class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                active-class="text-primary-600"
+              >
+                Daily Summary
+              </router-link>
+              <router-link 
+                to="/detections-by-hour" 
+                class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                active-class="text-primary-600"
+              >
+                By Hour
+              </router-link>
+              <router-link 
+                to="/detections-by-species" 
+                class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                active-class="text-primary-600"
+              >
+                By Species
+              </router-link>
+              <router-link 
+                to="/weather-insights" 
+                class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                active-class="text-primary-600"
+              >
+                Weather Analysis
+              </router-link>
+            </div>
           </div>
 
           <!-- Right side -->
@@ -91,6 +123,34 @@
           >
             Home
           </router-link>
+          <router-link 
+            to="/daily-summary" 
+            class="block px-3 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+            active-class="bg-primary-50 text-primary-700"
+          >
+            Daily Summary
+          </router-link>
+          <router-link 
+            to="/detections-by-hour" 
+            class="block px-3 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+            active-class="bg-primary-50 text-primary-700"
+          >
+            By Hour
+          </router-link>
+          <router-link 
+            to="/detections-by-species" 
+            class="block px-3 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+            active-class="bg-primary-50 text-primary-700"
+          >
+            By Species
+          </router-link>
+          <router-link 
+            to="/weather-insights" 
+            class="block px-3 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+            active-class="bg-primary-50 text-primary-700"
+          >
+            Weather Analysis
+          </router-link>
         </div>
       </div>
     </nav>
@@ -145,3 +205,15 @@ onBeforeUnmount(() => {
   webSocketStore.disconnect()
 })
 </script>
+
+<style>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
