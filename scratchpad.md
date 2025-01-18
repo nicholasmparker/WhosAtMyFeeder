@@ -110,11 +110,12 @@ This file will be used to jot down notes, ideas, and plans for improving the pro
 
 ### Immediate Priority Features
 1. Weather Integration (Phase 3 & 4) 🚧
-   - Advanced weather pattern analysis
-   - Weather overlay on activity charts
-   - Correlation visualizations
-   - Forecast-based predictions
-   - Weather-based notifications
+   - ✅ Weather overlay on activity charts (WeatherCorrelationChart)
+   - ✅ Correlation visualizations with insights
+   - 🚧 Advanced weather pattern analysis
+   - 🚧 Forecast-based predictions
+   - 🚧 Weather-based notifications
+   - 🚧 WeatherActivityHeatmap implementation
 
 2. Enhanced Data Visualization
    - Daily/weekly/monthly bird visit patterns
@@ -223,3 +224,53 @@ Low Priority:
 - Implement API versioning
 - Setup development guidelines
 - Add contribution guidelines
+
+## Special Detection Highlights
+
+### Rarity Detection System
+- Implement historical frequency analysis:
+  * Track baseline frequency for each species
+  * Calculate rarity scores based on appearance rates
+  * Consider seasonal patterns (e.g., migration periods)
+  * Flag "first of season" appearances
+  * Integration with eBird API for regional rarity context
+
+### Exceptional Image Detection
+- Add image quality scoring system:
+  * ML-based image quality assessment (clarity, focus, composition)
+  * Detect interesting behaviors (feeding, nesting, interaction)
+  * Multiple bird interaction detection
+  * Unusual poses or activities
+  * Full body vs partial visibility scoring
+
+### Smart Notification System
+- Configurable alerts for special detections:
+  * Rare species alerts
+  * High-quality image notifications
+  * Unusual behavior alerts
+  * First-time visitor notifications
+  * Season-first appearance alerts
+
+### Community Features
+- Add user interaction for special detections:
+  * Favorite/bookmark system for exceptional shots
+  * Share button for rare sightings
+  * Community voting on best photos
+  * Tagging system for interesting behaviors
+  * Monthly highlights gallery
+
+### Automated Analysis
+- Implement ML-based special detection features:
+  * Behavior pattern recognition
+  * Unusual timing detection
+  * Group activity detection
+  * Predator/prey interaction alerts
+  * Nesting behavior identification
+
+### Database Enhancements
+- Add new tables and fields for special detection tracking:
+  * Rarity scores
+  * Image quality metrics
+  * Behavior classifications
+  * Community engagement metrics
+  * Historical trends
