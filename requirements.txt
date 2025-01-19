@@ -4,6 +4,7 @@ tflite-support==0.4.4  # Latest available version
 opencv-python==4.8.1.78  # For image processing and quality assessment
 pillow==10.1.0
 scikit-image==0.22.0  # For additional image quality metrics
+numpy==1.24.3  # Pinned for TensorFlow compatibility
 
 # Web framework and servers
 flask==3.0.0
@@ -16,7 +17,6 @@ pydantic==2.5.3  # For FastAPI data validation
 
 # Vision and Image Analysis
 openai==1.3.7  # For Vision API image analysis
-numpy==1.26.2
 
 # Weather integration
 pyowm==3.3.0  # OpenWeatherMap client
