@@ -154,6 +154,7 @@ class SpecialDetectionService:
                     d.detection_time,
                     d.display_name,
                     d.score as detection_score,
+                    d.frigate_event,  -- Add frigate_event to the query
                     b.common_name,
                     iq.clarity_score,
                     iq.composition_score,

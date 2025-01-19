@@ -9,13 +9,25 @@ from flask_cors import CORS
 from queries import recent_detections, get_daily_summary, get_common_name, get_records_for_date_hour
 from queries import get_records_for_scientific_name_and_date, get_earliest_detection_date
 from weather_service import WeatherService
+from special_detection_service import SpecialDetectionService
 import os
+import json
 
 app = Flask(__name__, static_folder='static/dist', static_url_path='')
 CORS(app)
 config = None
-DBPATH = './data/speciesid.db'
+DBPATH = '/data/speciesid.db'
 weather_service = None
+special_detection_service = None
+
+# Custom JSON encoder to handle SQLite Row objects
+class SQLiteJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, sqlite3.Row):
+            return {k: obj[k] for k in obj.keys()}
+        return super().default(obj)
+
+app.json_encoder = SQLiteJSONEncoder
 
 # API Routes
 @app.route('/api/detections/recent')
@@ -154,11 +166,12 @@ def serve_vue_app(path):
     return send_from_directory(dist_dir, 'index.html')
 
 def load_config():
-    global config, weather_service
+    global config, weather_service, special_detection_service
     file_path = './config/config.yml'
     with open(file_path, 'r') as config_file:
         config = yaml.safe_load(config_file)
     weather_service = WeatherService(file_path, DBPATH)
+    special_detection_service = SpecialDetectionService(DBPATH)
 
 load_config()
 
@@ -176,15 +189,52 @@ def api_current_weather():
 @app.route('/api/weather/correlation')
 def api_weather_correlation():
     try:
-        start_date = request.args.get('start_date', type=str)
-        end_date = request.args.get('end_date', type=str)
-        species = request.args.get('species', type=str)
+        date = request.args.get('date', type=str)
+        hour = request.args.get('hour', type=str)
+        metric = request.args.get('metric', type=str, default='temperature')
         
-        if not start_date or not end_date:
-            abort(400, description="start_date and end_date are required")
+        if not date or hour is None:
+            abort(400, description="date and hour are required")
+        
+        # Convert hour-based request to a time range
+        try:
+            dt = datetime.strptime(f"{date} {hour}:00:00", "%Y-%m-%d %H:%M:%S")
+            start_date = dt.strftime("%Y-%m-%d %H:00:00")
+            end_date = dt.strftime("%Y-%m-%d %H:59:59")
+        except ValueError:
+            abort(400, description="Invalid date or hour format")
             
-        data = weather_service.get_weather_correlation(start_date, end_date, species)
-        return jsonify(data)
+        data = weather_service.get_weather_correlation(start_date, end_date)
+        
+        # Format response for the chart
+        correlations = []
+        for result in data['results']:
+            correlations.append({
+                'timestamp': dt.strftime("%Y-%m-%d %H:%M:%S"),
+                'metric_value': result.get(metric, 0),
+                'detection_count': result['detection_count'],
+                'weather_condition': result.get('weather_condition', '')
+            })
+            
+        # Generate insight based on the correlation
+        total_detections = sum(r['detection_count'] for r in correlations)
+        if total_detections > 0:
+            max_period = max(correlations, key=lambda x: x['detection_count'])
+            insight = f"Peak activity occurred when {metric} was {max_period['metric_value']}"
+            if metric == 'temperature':
+                insight += f"°{'F' if data['units'] == 'imperial' else 'C'}"
+            elif metric == 'wind_speed':
+                insight += f" {'mph' if data['units'] == 'imperial' else 'm/s'}"
+            elif metric in ['humidity', 'cloud_cover']:
+                insight += "%"
+        else:
+            insight = "No bird activity detected during this period"
+            
+        return jsonify({
+            'correlations': correlations,
+            'insight': insight,
+            'units': data['units']
+        })
     except Exception as e:
         abort(500, description=str(e))
 
@@ -209,5 +259,83 @@ def api_detection_weather(detection_id):
     except Exception as e:
         abort(500, description=str(e))
 
+# Special Detection API endpoints
+@app.route('/api/special-detections/recent')
+def api_recent_special_detections():
+    """Get recent special detections."""
+    try:
+        limit = request.args.get('limit', default=10, type=int)
+        detections = special_detection_service.get_recent_special_detections(limit)
+        return jsonify(detections)
+    except Exception as e:
+        print(f"Error fetching recent special detections: {e}", flush=True)
+        abort(500, description=str(e))
+
+@app.route('/api/special-detections/by-type/<highlight_type>')
+def api_special_detections_by_type(highlight_type):
+    """Get special detections by type (rare/quality/behavior)."""
+    try:
+        if highlight_type not in ['rare', 'quality', 'behavior']:
+            abort(400, description="Invalid highlight type")
+            
+        conn = sqlite3.connect(DBPATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                sd.*,
+                d.detection_time,
+                d.display_name,
+                d.score as detection_score,
+                d.frigate_event,
+                b.common_name,
+                iq.clarity_score,
+                iq.composition_score,
+                iq.behavior_tags
+            FROM special_detections sd
+            JOIN detections d ON sd.detection_id = d.id
+            JOIN birdnames b ON d.display_name = b.scientific_name
+            LEFT JOIN image_quality iq ON d.id = iq.detection_id
+            WHERE sd.highlight_type = ?
+            ORDER BY sd.score DESC
+            LIMIT 50
+        """, (highlight_type,))
+        
+        columns = [col[0] for col in cursor.description]
+        results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        conn.close()
+        
+        return jsonify(results)
+    except Exception as e:
+        print(f"Error fetching special detections by type: {e}", flush=True)
+        abort(500, description=str(e))
+
+@app.route('/api/special-detections/<int:special_detection_id>/vote', methods=['POST'])
+def api_vote_special_detection(special_detection_id):
+    """Update community votes for a special detection."""
+    try:
+        data = request.get_json()
+        if not isinstance(data, dict) or 'increment' not in data:
+            abort(400, description="Missing increment parameter")
+            
+        special_detection_service.update_community_votes(
+            special_detection_id,
+            increment=data['increment']
+        )
+        return jsonify({"success": True})
+    except Exception as e:
+        print(f"Error updating votes: {e}", flush=True)
+        abort(500, description=str(e))
+
+@app.route('/api/special-detections/<int:special_detection_id>/featured', methods=['POST'])
+def api_toggle_featured_status(special_detection_id):
+    """Toggle featured status of a special detection."""
+    try:
+        new_status = special_detection_service.toggle_featured_status(special_detection_id)
+        return jsonify({"featured": new_status})
+    except Exception as e:
+        print(f"Error toggling featured status: {e}", flush=True)
+        abort(500, description=str(e))
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=7766)
+    # Only run Flask directly when this file is run directly (not when imported)
+    app.run(host='0.0.0.0', port=7766, debug=False)
