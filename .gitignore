@@ -4,7 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -20,39 +19,49 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-.env
 
-# Node/Vue.js
+# Node
 node_modules/
-/dist
-.DS_Store
-
-# local env files
-.env.local
-.env.*.local
-
-# Log files
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
 
-# Editor directories and files
-.idea
-.vscode
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 
-# SQLite database files
-*.db
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
 data/
+*.db
+*.sqlite3
+*.log
+/static/images/*
+!/static/images/1x1.png
+
+# Configuration
+/config/config.yml
+/config/config.yml.backup
+.env
+.env.*
 
 # Docker
 .docker/
+docker-compose.override.yml
 
-# System Files
-.DS_Store
-.aider*
+# API Keys and Secrets
+*.pem
+*.key
+*.crt
+*.cert
