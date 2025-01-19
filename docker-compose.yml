@@ -1,36 +1,16 @@
-version: "3.6"
 services:
   whosatmyfeeder:
     container_name: whosatmyfeeder
-    restart: unless-stopped
     build: .
     volumes:
       - ./config:/config
       - ./data:/data
-      - ./frontend:/app/frontend  # Mount frontend files for development
-      - ./static:/app/static      # Mount static files
-      - ./webui.py:/app/webui.py  # Mount Python files for hot reload
-      - ./speciesid.py:/app/speciesid.py
-      - ./weather_service.py:/app/weather_service.py
-      - ./websocket_server.py:/app/websocket_server.py
-      - ./queries.py:/app/queries.py
+      - ./frontend:/app/frontend
+      - ./static:/app/static
     ports:
       - 7766:7766  # Flask backend
       - 5173:5173  # Vite dev server
       - 8765:8765  # WebSocket server
     environment:
-      - TZ=America/New_York
-      - FLASK_ENV=development
-      - FLASK_DEBUG=1
-      - VITE_HOST=0.0.0.0
-      - VITE_PORT=5173
-      - HOST=0.0.0.0  # For Vite
-      - CHOKIDAR_USEPOLLING=true  # For hot reload
-    networks:
-      - app_network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-networks:
-  app_network:
-    driver: bridge
+      - PYTHONPATH=/app
+      - NODE_OPTIONS=--dns-result-order=ipv4first  # Makes Node.js localhost resolution consistent
