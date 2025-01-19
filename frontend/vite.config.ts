@@ -5,10 +5,14 @@ import path from 'path'
 export default defineConfig({
   plugins: [vue()],
   server: {
-    host: true, // Listen on all addresses
+    host: true,
     proxy: {
       '/api': 'http://app:7766',
-      '/frigate': 'http://app:7766'
+      '/ws': {
+        target: 'ws://websocket:8765',
+        ws: true,
+        rewriteWsOrigin: true,
+      }
     }
   },
   resolve: {
