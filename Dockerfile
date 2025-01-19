@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libgomp1 \
     libusb-1.0-0 \
-    python3-dev \
+    python3.11-dev \
     wget \
     curl \
     sqlite3 \
