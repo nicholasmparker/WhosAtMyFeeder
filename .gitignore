@@ -56,6 +56,12 @@ data/
 .env
 .env.*
 
+# ML Models
+/models/*
+!/models/.gitkeep
+/test_data/*
+!/test_data/.gitkeep
+
 # Docker
 .docker/
 docker-compose.override.yml

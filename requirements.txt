@@ -5,10 +5,16 @@ pyyaml==6.0.1
 requests==2.31.0
 pillow==10.1.0
 numpy==1.26.2
-tensorflow-lite==2.14.0
+tensorflow==2.14.0  # Changed from tensorflow-lite for better compatibility
 paho-mqtt==1.6.1
 python-dateutil==2.8.2
 aiohttp==3.9.1
 openai==1.3.7  # For Vision API
 asyncio==3.4.3  # For async/await support
 pytz==2023.3.post1  # For timezone handling
+torch==2.1.1  # For RealESRGAN
+torchvision==0.16.1  # For image processing utilities
+basicsr==1.4.2  # For RealESRGAN architecture
+gfpgan==1.3.8  # For face enhancement (optional)
+opencv-python==4.8.1.78  # For image processing
+tqdm==4.66.1  # For progress bars
