@@ -1,20 +1,36 @@
+# Core ML dependencies
+tensorflow==2.13.0  # Latest stable with Python 3.10 support
+tflite-support==0.4.4  # Latest available version
+opencv-python==4.8.1.78  # For image processing and quality assessment
+pillow==10.1.0
+scikit-image==0.22.0  # For additional image quality metrics
+
+# Web framework and servers
 flask==3.0.0
 flask-cors==4.0.0
-gunicorn==21.2.0
+gunicorn==21.2.0  # Production WSGI server
+fastapi==0.109.0  # For WebSocket server
+uvicorn[standard]==0.27.0  # ASGI server for FastAPI with WebSocket support
+websockets==12.0  # WebSocket support
+pydantic==2.5.3  # For FastAPI data validation
+
+# Vision and Image Analysis
+openai==1.3.7  # For Vision API image analysis
+numpy==1.26.2
+
+# Weather integration
+pyowm==3.3.0  # OpenWeatherMap client
+
+# MQTT client
+paho-mqtt==1.6.1
+
+# Async support
+aiohttp==3.9.1
+asyncio==3.4.3
+python-dateutil==2.8.2
+
+# Utilities
 pyyaml==6.0.1
 requests==2.31.0
-pillow==10.1.0
-numpy==1.26.2
-tensorflow==2.14.0  # Changed from tensorflow-lite for better compatibility
-paho-mqtt==1.6.1
-python-dateutil==2.8.2
-aiohttp==3.9.1
-openai==1.3.7  # For Vision API
-asyncio==3.4.3  # For async/await support
 pytz==2023.3.post1  # For timezone handling
-torch==2.1.1  # For RealESRGAN
-torchvision==0.16.1  # For image processing utilities
-basicsr==1.4.2  # For RealESRGAN architecture
-gfpgan==1.3.8  # For face enhancement (optional)
-opencv-python==4.8.1.78  # For image processing
 tqdm==4.66.1  # For progress bars
