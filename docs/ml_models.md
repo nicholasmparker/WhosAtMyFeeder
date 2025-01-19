@@ -7,25 +7,30 @@ The system uses two local ML models for image quality assessment and enhancement
 
 ## First-Time Setup
 
-1. Create Docker volumes:
+1. Download the models:
 ```bash
-docker volume create whosatmyfeeder_ml_models
-docker volume create whosatmyfeeder_test_data
-```
+# Make script executable if needed
+chmod +x download_models.sh
 
-2. Run the setup script:
-```bash
-# Build and start the container
-docker-compose up -d
-
-# Run setup script in container
-docker exec whosatmyfeeder python setup_models.py
+# Run the download script
+./download_models.sh
 ```
 
 This will:
-- Download/create necessary model files in the persistent volume
-- Test models with sample images
-- Update configuration paths
+- Create Docker volumes for models and test data
+- Download RealESRGAN model
+- Create TF-IQA model
+- Download test images
+- Set up proper permissions
+
+2. Start the application:
+```bash
+# Start the container
+docker-compose up -d
+
+# Verify models
+docker exec whosatmyfeeder python setup_models.py
+```
 
 ## Model Details
 
@@ -69,7 +74,7 @@ volumes:
 ```bash
 docker exec whosatmyfeeder python setup_models.py
 ```
-This will download a sample bird image and test both models.
+This will test both models with the downloaded test image.
 
 2. Integration Testing:
 ```bash
@@ -115,9 +120,9 @@ image_processing:
 ## Troubleshooting
 
 1. Model Loading Issues
+   - Run download_models.sh again
    - Check volume mounts: `docker volume ls`
    - Verify model files: `docker exec whosatmyfeeder ls -R /app/models`
-   - Check GPU/CUDA availability
 
 2. Memory Issues
    - Check Docker memory limits
@@ -158,6 +163,31 @@ image_processing:
    - Easy to share test cases
 
 3. Backup
-   - Volumes can be backed up: `docker volume backup whosatmyfeeder_ml_models`
-   - Models preserved during updates
-   - Easy to restore previous versions
+   ```bash
+   # Backup volumes
+   docker run --rm -v whosatmyfeeder_ml_models:/models \
+     -v $(pwd):/backup alpine tar czf /backup/models.tar.gz /models
+
+   # Restore volumes
+   docker run --rm -v whosatmyfeeder_ml_models:/models \
+     -v $(pwd):/backup alpine tar xzf /backup/models.tar.gz -C /
+   ```
+
+## Updating Models
+
+1. To update models:
+```bash
+# Remove existing volumes
+docker volume rm whosatmyfeeder_ml_models whosatmyfeeder_test_data
+
+# Re-run download script
+./download_models.sh
+```
+
+2. Or update individual models:
+```bash
+# Copy new model file to volume
+docker cp new_model.pth whosatmyfeeder:/app/models/enhancement/RealESRGAN_x4plus/RealESRGAN_x4plus.pth
+
+# Test new model
+docker exec whosatmyfeeder python setup_models.py
