@@ -27,6 +27,9 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 ENV PIP_DEFAULT_TIMEOUT=100
 ENV PIP_RETRIES=3
 
+# Install aiohttp first since it needs to compile
+RUN pip install --no-cache-dir aiohttp==3.8.0
+
 # Copy and install Python dependencies
 COPY requirements.txt .
 # First install packages that require build tools
