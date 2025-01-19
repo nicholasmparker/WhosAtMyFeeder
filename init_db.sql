@@ -1,134 +1,98 @@
--- Create birdnames table
-CREATE TABLE IF NOT EXISTS birdnames (
-    scientific_name TEXT PRIMARY KEY,
-    common_name TEXT NOT NULL
-);
-
--- Create detections table
+-- Base tables for bird detection and identification
 CREATE TABLE IF NOT EXISTS detections (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    detection_time DATETIME,
-    detection_index INTEGER,
+    detection_time DATETIME NOT NULL,
+    display_name TEXT,  -- Scientific name
     score REAL,
-    display_name TEXT,
-    category_name TEXT,
     frigate_event TEXT,
-    camera_name TEXT,
-    FOREIGN KEY (display_name) REFERENCES birdnames(scientific_name)
-);
-
--- Create weather_data table
-CREATE TABLE IF NOT EXISTS weather_data (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp DATETIME NOT NULL,
-    temperature REAL,
-    feels_like REAL,
-    humidity INTEGER,
-    pressure INTEGER,
-    wind_speed REAL,
-    wind_direction INTEGER,
-    precipitation REAL,
-    cloud_cover INTEGER,
-    visibility INTEGER,
-    weather_condition TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create index on weather timestamp
-CREATE INDEX IF NOT EXISTS idx_weather_timestamp ON weather_data(timestamp);
-
--- Create detection_weather join table
-CREATE TABLE IF NOT EXISTS detection_weather (
-    detection_id INTEGER,
-    weather_id INTEGER,
-    FOREIGN KEY (detection_id) REFERENCES detections(id),
-    FOREIGN KEY (weather_id) REFERENCES weather_data(id)
+CREATE TABLE IF NOT EXISTS birdnames (
+    scientific_name TEXT PRIMARY KEY,
+    common_name TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create rarity_scores table for tracking species frequency
+-- Special detection system tables
 CREATE TABLE IF NOT EXISTS rarity_scores (
-    species_id TEXT PRIMARY KEY,
-    frequency_score REAL,           -- normalized score 0-1 based on historical frequency
-    seasonal_score REAL,            -- normalized score 0-1 based on seasonal patterns
-    last_seen DATETIME,             -- timestamp of most recent detection
-    first_seen_this_season DATETIME,-- timestamp of first detection this season
-    total_visits INTEGER DEFAULT 0, -- total number of visits recorded
+    species_id TEXT PRIMARY KEY,  -- Scientific name
+    frequency_score REAL,  -- 0-1 score based on visit frequency
+    seasonal_score REAL,   -- 0-1 score based on seasonal patterns
+    last_seen DATETIME,
+    first_seen_this_season DATETIME,
+    total_visits INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (species_id) REFERENCES birdnames(scientific_name)
 );
 
--- Create image_quality table for storing quality metrics
 CREATE TABLE IF NOT EXISTS image_quality (
     detection_id INTEGER PRIMARY KEY,
-    clarity_score REAL,              -- 0-1 score for image clarity/focus
-    composition_score REAL,          -- 0-1 score for image composition
-    behavior_tags TEXT,              -- JSON array of detected behaviors
-    visibility_score REAL,           -- 0-1 score for how well the bird is visible
+    clarity_score REAL,        -- 0-1 score for image clarity/focus
+    composition_score REAL,    -- 0-1 score for composition/framing
+    behavior_tags TEXT,        -- JSON array of behavior tags
+    visibility_score REAL,     -- 0-1 score for bird visibility
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (detection_id) REFERENCES detections(id)
 );
 
--- Create special_detections table for highlighted detections
 CREATE TABLE IF NOT EXISTS special_detections (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    detection_id INTEGER,
+    detection_id INTEGER UNIQUE,
     highlight_type TEXT CHECK(highlight_type IN ('rare', 'quality', 'behavior')),
-    score REAL,                      -- combined score for this special detection
+    score REAL,  -- Combined score determining significance
     community_votes INTEGER DEFAULT 0,
     featured_status BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (detection_id) REFERENCES detections(id)
 );
 
--- Create indices for performance
-CREATE INDEX IF NOT EXISTS idx_rarity_species ON rarity_scores(species_id);
-CREATE INDEX IF NOT EXISTS idx_image_quality_detection ON image_quality(detection_id);
-CREATE INDEX IF NOT EXISTS idx_special_detections_type ON special_detections(highlight_type);
-CREATE INDEX IF NOT EXISTS idx_special_detections_score ON special_detections(score);
+-- Vision analysis cache and cost tracking
+CREATE TABLE IF NOT EXISTS vision_analysis_cache (
+    detection_id INTEGER PRIMARY KEY,
+    analysis_data TEXT,        -- JSON string of OpenAI response
+    clarity_score REAL,        -- 0-1 score from vision analysis
+    composition_score REAL,    -- 0-1 score from vision analysis
+    behavior_tags TEXT,        -- JSON array of behaviors
+    cost_tokens INTEGER,       -- Number of tokens used
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (detection_id) REFERENCES detections(id)
+);
 
--- Insert bird names
-INSERT OR REPLACE INTO birdnames (scientific_name, common_name) VALUES 
-    ('Cardinalis cardinalis', 'Northern Cardinal'),
-    ('Cyanocitta cristata', 'Blue Jay'),
-    ('Poecile atricapillus', 'Black-capped Chickadee'),
-    ('Sitta carolinensis', 'White-breasted Nuthatch'),
-    ('Haemorhous mexicanus', 'House Finch'),
-    ('Melospiza melodia', 'Song Sparrow'),
-    ('Spinus tristis', 'American Goldfinch'),
-    ('Zenaida macroura', 'Mourning Dove'),
-    ('Junco hyemalis', 'Dark-eyed Junco'),
-    ('Baeolophus bicolor', 'Tufted Titmouse'),
-    ('Melanerpes carolinus', 'Red-bellied Woodpecker'),
-    ('Dryobates pubescens', 'Downy Woodpecker'),
-    ('Pipilo erythrophthalmus', 'Eastern Towhee'),
-    ('Thryothorus ludovicianus', 'Carolina Wren');
+CREATE TABLE IF NOT EXISTS vision_api_costs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date DATE UNIQUE,          -- Track costs per day
+    total_tokens INTEGER,      -- Total tokens used
+    total_cost REAL,          -- Total cost in USD
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 
--- Insert sample detections
-INSERT INTO detections (detection_time, detection_index, score, display_name, category_name, frigate_event, camera_name)
-VALUES 
-    ('2025-01-17 10:00:00', 1, 0.95, 'Cardinalis cardinalis', 'bird', 'event1', 'Griffin'),
-    ('2025-01-17 10:15:00', 2, 0.92, 'Cyanocitta cristata', 'bird', 'event2', 'Griffin'),
-    ('2025-01-17 11:00:00', 3, 0.88, 'Cardinalis cardinalis', 'bird', 'event3', 'Griffin'),
-    ('2025-01-17 14:30:00', 4, 0.91, 'Poecile atricapillus', 'bird', 'event4', 'Griffin'),
-    ('2025-01-17 14:45:00', 5, 0.89, 'Sitta carolinensis', 'bird', 'event5', 'Griffin'),
-    ('2025-01-17 15:00:00', 6, 0.94, 'Cardinalis cardinalis', 'bird', 'event6', 'Griffin'),
-    ('2025-01-17 15:15:00', 7, 0.87, 'Cyanocitta cristata', 'bird', 'event7', 'Griffin');
+-- Weather tracking tables
+CREATE TABLE IF NOT EXISTS weather_conditions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp DATETIME NOT NULL,
+    temperature REAL,
+    humidity REAL,
+    wind_speed REAL,
+    wind_direction TEXT,
+    weather_condition TEXT,
+    cloud_cover INTEGER,
+    precipitation REAL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 
--- Insert sample weather data (temperatures in Fahrenheit for imperial units)
-INSERT INTO weather_data (timestamp, temperature, feels_like, humidity, pressure, wind_speed, wind_direction, precipitation, cloud_cover, visibility, weather_condition)
-VALUES 
-    ('2025-01-17 10:00:00', 60.0, 58.0, 65, 1013, 8.0, 180, 0.0, 25, 10000, 'partly cloudy'),
-    ('2025-01-17 10:15:00', 61.0, 59.0, 64, 1013, 7.5, 182, 0.0, 28, 10000, 'partly cloudy'),
-    ('2025-01-17 11:00:00', 63.0, 61.0, 62, 1013, 9.0, 185, 0.0, 30, 10000, 'partly cloudy'),
-    ('2025-01-17 14:30:00', 68.0, 66.0, 58, 1012, 10.0, 190, 0.0, 45, 10000, 'clear sky'),
-    ('2025-01-17 14:45:00', 69.0, 67.0, 57, 1012, 9.5, 192, 0.0, 42, 10000, 'clear sky'),
-    ('2025-01-17 15:00:00', 70.0, 68.0, 57, 1012, 9.0, 195, 0.0, 40, 10000, 'clear sky'),
-    ('2025-01-17 15:15:00', 70.5, 68.5, 56, 1012, 8.5, 198, 0.0, 38, 10000, 'clear sky');
+CREATE TABLE IF NOT EXISTS detection_weather (
+    detection_id INTEGER PRIMARY KEY,
+    weather_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (detection_id) REFERENCES detections(id),
+    FOREIGN KEY (weather_id) REFERENCES weather_conditions(id)
+);
 
--- Link detections with weather data (using 15-minute intervals for more precise correlation)
-INSERT INTO detection_weather (detection_id, weather_id)
-SELECT d.id, w.id
-FROM detections d
-JOIN weather_data w 
-WHERE strftime('%Y-%m-%d %H:%M', d.detection_time) = strftime('%Y-%m-%d %H:%M', w.timestamp)
-   OR (strftime('%Y-%m-%d %H', d.detection_time) = strftime('%Y-%m-%d %H', w.timestamp)
-       AND abs(strftime('%M', d.detection_time) - strftime('%M', w.timestamp)) <= 15);
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_detections_time ON detections(detection_time);
+CREATE INDEX IF NOT EXISTS idx_detections_species ON detections(display_name);
+CREATE INDEX IF NOT EXISTS idx_special_type ON special_detections(highlight_type);
+CREATE INDEX IF NOT EXISTS idx_weather_time ON weather_conditions(timestamp);
+CREATE INDEX IF NOT EXISTS idx_vision_cache_time ON vision_analysis_cache(created_at);
+CREATE INDEX IF NOT EXISTS idx_vision_costs_date ON vision_api_costs(date);
