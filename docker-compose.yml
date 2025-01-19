@@ -1,16 +1,31 @@
+version: '3.8'
+
 services:
-  whosatmyfeeder:
-    container_name: whosatmyfeeder
+  app:
     build: .
-    volumes:
-      - ./config:/config
-      - ./data:/data
-      - ./frontend:/app/frontend
-      - ./static:/app/static
     ports:
-      - 7766:7766  # Flask backend
-      - 5173:5173  # Vite dev server
-      - 8765:8765  # WebSocket server
+      - "7766:7766"
+    volumes:
+      - ./config:/app/config
+      - ./data:/data
+      - ml_models:/app/models  # Persistent volume for ML models
+      - test_data:/app/test_data  # Persistent volume for test data
     environment:
+      - TZ=America/Chicago
       - PYTHONPATH=/app
-      - NODE_OPTIONS=--dns-result-order=ipv4first  # Makes Node.js localhost resolution consistent
+      - TF_CPP_MIN_LOG_LEVEL=2
+      - OPENCV_IO_MAX_IMAGE_PIXELS=1000000000
+    restart: unless-stopped
+    init: true
+    deploy:
+      resources:
+        limits:
+          memory: 4G  # Limit memory usage
+        reservations:
+          memory: 1G  # Guarantee minimum memory
+
+volumes:
+  ml_models:  # Named volume for ML models
+    name: whosatmyfeeder_ml_models
+  test_data:  # Named volume for test data
+    name: whosatmyfeeder_test_data

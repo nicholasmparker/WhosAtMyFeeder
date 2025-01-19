@@ -5,15 +5,25 @@ The system uses two local ML models for image quality assessment and enhancement
 1. TF-IQA: Quality assessment model
 2. RealESRGAN: Image enhancement model
 
-## Setup Process
+## First-Time Setup
 
-1. Run the setup script:
+1. Create Docker volumes:
 ```bash
-python setup_models.py
+docker volume create whosatmyfeeder_ml_models
+docker volume create whosatmyfeeder_test_data
+```
+
+2. Run the setup script:
+```bash
+# Build and start the container
+docker-compose up -d
+
+# Run setup script in container
+docker exec whosatmyfeeder python setup_models.py
 ```
 
 This will:
-- Download/create necessary model files
+- Download/create necessary model files in the persistent volume
 - Test models with sample images
 - Update configuration paths
 
@@ -25,7 +35,7 @@ This will:
   * Clarity (focus, resolution)
   * Composition (framing, rule of thirds)
   * Overall quality score
-- Location: models/quality/tf-iqa-model/model.h5
+- Location: Docker volume: whosatmyfeeder_ml_models/quality/tf-iqa-model/model.h5
 
 ### RealESRGAN (Enhancement)
 - Purpose: Enhance low-quality images
@@ -33,29 +43,37 @@ This will:
   * 4x upscaling
   * Noise reduction
   * Detail enhancement
-- Location: models/enhancement/RealESRGAN_x4plus/RealESRGAN_x4plus.pth
+- Location: Docker volume: whosatmyfeeder_ml_models/enhancement/RealESRGAN_x4plus/RealESRGAN_x4plus.pth
 
 ## Docker Integration
 
-The models are automatically set up in the Docker container:
-```dockerfile
-RUN mkdir -p \
-    /app/models/quality/tf-iqa-model \
-    /app/models/enhancement/RealESRGAN_x4plus
-RUN python setup_models.py
+Models are stored in persistent volumes:
+```yaml
+volumes:
+  ml_models:
+    name: whosatmyfeeder_ml_models
+  test_data:
+    name: whosatmyfeeder_test_data
+```
+
+Volume mounts:
+```yaml
+volumes:
+  - ml_models:/app/models
+  - test_data:/app/test_data
 ```
 
 ## Testing
 
 1. Manual Testing:
 ```bash
-python setup_models.py
+docker exec whosatmyfeeder python setup_models.py
 ```
 This will download a sample bird image and test both models.
 
 2. Integration Testing:
 ```bash
-python debug_vision_analysis.py
+docker exec whosatmyfeeder python debug_vision_analysis.py
 ```
 Tests the models with actual detection images.
 
@@ -97,19 +115,19 @@ image_processing:
 ## Troubleshooting
 
 1. Model Loading Issues
-   - Check model files exist
-   - Verify paths in config.yml
+   - Check volume mounts: `docker volume ls`
+   - Verify model files: `docker exec whosatmyfeeder ls -R /app/models`
    - Check GPU/CUDA availability
 
 2. Memory Issues
-   - Adjust batch sizes
-   - Monitor GPU memory
+   - Check Docker memory limits
+   - Monitor container resources
    - Use CPU fallback if needed
 
-3. Image Processing Errors
-   - Check image format/size
-   - Verify OpenCV installation
-   - Check system dependencies
+3. Volume Issues
+   - Inspect volumes: `docker volume inspect whosatmyfeeder_ml_models`
+   - Check permissions
+   - Verify mount points
 
 ## Performance Notes
 
@@ -126,3 +144,20 @@ image_processing:
 3. Processing Times
    - Quality Assessment: ~100ms/image
    - Enhancement: ~1-2s/image (CPU), ~200ms/image (GPU)
+
+## Data Persistence
+
+1. Model Storage
+   - Models stored in Docker volume
+   - Survives container restarts/rebuilds
+   - Shared between container instances
+
+2. Test Data
+   - Sample images in separate volume
+   - Results persist between runs
+   - Easy to share test cases
+
+3. Backup
+   - Volumes can be backed up: `docker volume backup whosatmyfeeder_ml_models`
+   - Models preserved during updates
+   - Easy to restore previous versions

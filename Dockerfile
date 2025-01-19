@@ -14,18 +14,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Create directories
-RUN mkdir -p \
-    /app/models/quality/tf-iqa-model \
-    /app/models/enhancement/RealESRGAN_x4plus \
-    /app/test_data \
-    /data
+# Create directories (models will be mounted as volumes)
+RUN mkdir -p /data
 
 # Copy application code
 COPY . .
-
-# Set up models on first run
-RUN python setup_models.py
 
 # Set environment variables
 ENV PYTHONPATH=/app
