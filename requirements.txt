@@ -1,15 +1,27 @@
-Flask==2.3.2
-numpy==1.24.3
-opencv_python==4.7.0.72
-paho_mqtt==1.6.1
-PyYAML==6.0
-tflite_support==0.4.4
-requests==2.30.0
-Pillow==9.5.0
-fastapi==0.109.0
-uvicorn==0.27.0
-websockets==12.0
-python-multipart==0.0.6
-aiohttp==3.9.1
-pyowm>=3.3.0  # OpenWeatherMap Python client
-flask-cors==4.0.0  # CORS support for Flask
+# Core ML dependencies
+tensorflow==2.13.0  # Latest stable with Python 3.10 support
+tflite-support==0.4.4  # Latest available version
+opencv-python-headless~=4.8.0  # Pin to 4.8.x for stability
+pillow~=10.0.0  # Pin to 10.0.x
+
+# Web framework and servers
+flask~=2.3.0  # Pin to 2.3.x
+flask-cors~=4.0.0  # For CORS support
+uvicorn~=0.23.0  # Pin to 0.23.x
+fastapi~=0.100.0  # Pin to 0.100.x
+python-multipart~=0.0.6
+websockets~=11.0.0  # Pin to 11.0.x
+aiohttp~=3.8.0  # Pin to 3.8.x
+gunicorn~=21.2.0  # Production WSGI server
+
+# Weather integration
+pyowm~=3.3.0  # OpenWeatherMap client
+
+# MQTT client
+paho-mqtt~=1.6.0  # Pin to 1.6.x
+
+# Utilities
+pyyaml~=6.0.0  # Pin to 6.0.x
+beautifulsoup4~=4.12.0  # Pin to 4.12.x
+requests~=2.31.0  # Pin to 2.31.x
+lxml~=4.9.0  # Pin to 4.9.x

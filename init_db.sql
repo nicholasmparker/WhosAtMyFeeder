@@ -45,6 +45,46 @@ CREATE TABLE IF NOT EXISTS detection_weather (
     FOREIGN KEY (weather_id) REFERENCES weather_data(id)
 );
 
+-- Create rarity_scores table for tracking species frequency
+CREATE TABLE IF NOT EXISTS rarity_scores (
+    species_id TEXT PRIMARY KEY,
+    frequency_score REAL,           -- normalized score 0-1 based on historical frequency
+    seasonal_score REAL,            -- normalized score 0-1 based on seasonal patterns
+    last_seen DATETIME,             -- timestamp of most recent detection
+    first_seen_this_season DATETIME,-- timestamp of first detection this season
+    total_visits INTEGER DEFAULT 0, -- total number of visits recorded
+    FOREIGN KEY (species_id) REFERENCES birdnames(scientific_name)
+);
+
+-- Create image_quality table for storing quality metrics
+CREATE TABLE IF NOT EXISTS image_quality (
+    detection_id INTEGER PRIMARY KEY,
+    clarity_score REAL,              -- 0-1 score for image clarity/focus
+    composition_score REAL,          -- 0-1 score for image composition
+    behavior_tags TEXT,              -- JSON array of detected behaviors
+    visibility_score REAL,           -- 0-1 score for how well the bird is visible
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (detection_id) REFERENCES detections(id)
+);
+
+-- Create special_detections table for highlighted detections
+CREATE TABLE IF NOT EXISTS special_detections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    detection_id INTEGER,
+    highlight_type TEXT CHECK(highlight_type IN ('rare', 'quality', 'behavior')),
+    score REAL,                      -- combined score for this special detection
+    community_votes INTEGER DEFAULT 0,
+    featured_status BOOLEAN DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (detection_id) REFERENCES detections(id)
+);
+
+-- Create indices for performance
+CREATE INDEX IF NOT EXISTS idx_rarity_species ON rarity_scores(species_id);
+CREATE INDEX IF NOT EXISTS idx_image_quality_detection ON image_quality(detection_id);
+CREATE INDEX IF NOT EXISTS idx_special_detections_type ON special_detections(highlight_type);
+CREATE INDEX IF NOT EXISTS idx_special_detections_score ON special_detections(score);
+
 -- Insert bird names
 INSERT OR REPLACE INTO birdnames (scientific_name, common_name) VALUES 
     ('Cardinalis cardinalis', 'Northern Cardinal'),

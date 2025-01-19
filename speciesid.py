@@ -1,3 +1,7 @@
+import os
+os.environ['FLASK_ENV'] = 'production'
+os.environ['FLASK_DEBUG'] = '0'
+
 import sqlite3
 import numpy as np
 from datetime import datetime
@@ -10,7 +14,6 @@ from tflite_support.task import vision
 import paho.mqtt.client as mqtt
 import hashlib
 import yaml
-from webui import app
 import sys
 import json
 import requests
@@ -20,117 +23,98 @@ from PIL import Image, ImageOps
 from io import BytesIO
 from queries import get_common_name
 from concurrent.futures import ThreadPoolExecutor
+from special_detection_service import SpecialDetectionService
 
 classifier = None
 config = None
 firstmessage = True
+special_detection_service = None
 
-DBPATH = './data/speciesid.db'
-
+DBPATH = '/data/speciesid.db'  # Use absolute path to match Docker configuration
 
 def classify(image):
     try:
-        print("Starting classification process...", flush=True)
+        # Convert to RGB if needed
+        if len(image.shape) == 3 and image.shape[2] == 3:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        
         tensor_image = vision.TensorImage.create_from_array(image)
-        print("Created tensor image", flush=True)
-        
-        # Add a small delay to ensure tensor image is fully created
-        time.sleep(0.1)
-        
         result = classifier.classify(tensor_image)
-        print("Classification completed", flush=True)
         
         if not result.classifications:
-            print("No classifications returned", flush=True)
             return []
         
         return result.classifications[0].categories
     except Exception as e:
         print(f"Error in classify function: {str(e)}", flush=True)
-        import traceback
-        print(traceback.format_exc(), flush=True)
         return []
 
-
 def on_connect(client, userdata, flags, rc):
-    rc_codes = {
-        0: "Connection successful",
-        1: "Connection refused - incorrect protocol version",
-        2: "Connection refused - invalid client identifier",
-        3: "Connection refused - server unavailable",
-        4: "Connection refused - bad username or password",
-        5: "Connection refused - not authorized"
-    }
-    status = rc_codes.get(rc, f"Unknown error code: {rc}")
-    print(f"MQTT Connection status: {status}", flush=True)
-    
     if rc == 0:
         topic = config['frigate']['main_topic'] + "/events"
-        print(f"Subscribing to MQTT topic: {topic}", flush=True)
         client.subscribe(topic)
-        print(f"Successfully subscribed to {topic}", flush=True)
-
+    else:
+        print(f"MQTT Connection failed with code {rc}", flush=True)
 
 def on_disconnect(client, userdata, rc):
     if rc != 0:
-        print(f"Unexpected MQTT disconnection (code {rc}), attempting to reconnect...", flush=True)
+        print(f"Unexpected MQTT disconnection (code {rc})", flush=True)
         while True:
             try:
-                print("Attempting MQTT reconnection...", flush=True)
                 client.reconnect()
-                print("MQTT reconnection successful!", flush=True)
                 break
             except Exception as e:
                 print(f"MQTT reconnection failed: {str(e)}", flush=True)
-                print("Retrying in 60 seconds...", flush=True)
                 time.sleep(60)
     else:
         print("Clean MQTT disconnection", flush=True)
 
-
 def set_sublabel(frigate_url, frigate_event, sublabel):
-    post_url = frigate_url + "/api/events/" + frigate_event + "/sub_label"
-    print(f"Setting Frigate sublabel at URL: {post_url}", flush=True)
-
-    # If it's an unknown bird, use the scientific name (truncated) instead of "Unknown Bird"
-    if sublabel.startswith("Unknown Bird ("):
-        scientific_name = sublabel[13:-1]  # Extract name between parentheses
-        sublabel = scientific_name
-
-    # frigate limits sublabels to 20 characters currently
     if len(sublabel) > 20:
         sublabel = sublabel[:20]
-        print(f"Truncated sublabel to 20 chars: {sublabel}", flush=True)
 
-    payload = {
-        "subLabel": sublabel
-    }
-    headers = {
-        "Content-Type": "application/json"
-    }
+    payload = {"subLabel": sublabel}
+    headers = {"Content-Type": "application/json"}
+    post_url = frigate_url + "/api/events/" + frigate_event + "/sub_label"
 
     try:
-        print(f"Sending POST request to Frigate API: {post_url}", flush=True)
         response = requests.post(post_url, data=json.dumps(payload), headers=headers)
-        print(f"Frigate API response status: {response.status_code}", flush=True)
-        
-        if response.status_code == 200:
-            print(f"Successfully set sublabel to: {sublabel}", flush=True)
-        else:
-            print(f"Failed to set sublabel. Status: {response.status_code}, Response: {response.text}", flush=True)
+        if response.status_code != 200:
+            print(f"Failed to set sublabel: {response.status_code}", flush=True)
     except Exception as e:
-        print(f"Error communicating with Frigate API: {str(e)}", flush=True)
+        print(f"Error setting sublabel: {str(e)}", flush=True)
 
+async def process_special_detection(detection_id, score):
+    """Process special detection asynchronously"""
+    try:
+        special_detection_service.update_rarity_scores()
+        image_data = {
+            'clarity': score,
+            'composition': 0.8,
+            'visibility': 0.8,
+            'behaviors': []
+        }
+        special_detection_service.evaluate_image_quality(detection_id, image_data)
+        special_detection_service.create_special_detection(detection_id)
+    except Exception as e:
+        print(f"Error in special detection processing: {str(e)}", flush=True)
 
 async def notify_websocket(detection_data):
-    """Send detection to WebSocket server"""
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post('http://localhost:8765/notify', json=detection_data) as response:
                 if response.status != 200:
-                    print(f"Failed to notify WebSocket server: {response.status}", flush=True)
+                    print(f"WebSocket notification failed: {response.status}", flush=True)
     except Exception as e:
-        print(f"Error notifying WebSocket server: {str(e)}", flush=True)
+        print(f"WebSocket error: {str(e)}", flush=True)
+
+def process_image(image):
+    max_size = (224, 224)
+    image.thumbnail(max_size)
+    return ImageOps.expand(image, 
+        border=((max_size[0] - image.size[0]) // 2,
+                (max_size[1] - image.size[1]) // 2),
+        fill='black')
 
 def on_message(client, userdata, message):
     conn = sqlite3.connect(DBPATH)
@@ -139,14 +123,8 @@ def on_message(client, userdata, message):
     global firstmessage
     if not firstmessage:
         try:
-            print("\n=== New MQTT Message ===", flush=True)
-            print(f"Topic: {message.topic}", flush=True)
-            
             payload_dict = json.loads(message.payload)
             after_data = payload_dict.get('after', {})
-            
-            print(f"Camera: {after_data.get('camera')}", flush=True)
-            print(f"Label: {after_data.get('label')}", flush=True)
 
             if (after_data['camera'] in config['frigate']['camera'] and
                     after_data['label'] == 'bird'):
@@ -155,152 +133,91 @@ def on_message(client, userdata, message):
                 frigate_url = config['frigate']['frigate_url']
                 snapshot_url = frigate_url + "/api/events/" + frigate_event + "/snapshot.jpg"
 
-                print(f"\nProcessing bird detection:", flush=True)
-                print(f"Event ID: {frigate_event}", flush=True)
-                print(f"Snapshot URL: {snapshot_url}", flush=True)
-
-                params = {
-                    "crop": 1,
-                    "quality": 95
-                }
-                print("Fetching snapshot from Frigate...", flush=True)
+                params = {"crop": 1, "quality": 95}
                 response = requests.get(snapshot_url, params=params)
 
                 if response.status_code == 200:
-                    print("Successfully retrieved snapshot", flush=True)
                     image = Image.open(BytesIO(response.content))
-                    print(f"Original image size: {image.size}", flush=True)
-
-                    file_path = "fullsized.jpg"
-                    image.save(file_path, format="JPEG")
-                    print("Saved full-size image", flush=True)
-
-                    max_size = (224, 224)
-                    image.thumbnail(max_size)
-                    print(f"After thumbnail: {image.size}", flush=True)
-                    
-                    padded_image = ImageOps.expand(image, border=((max_size[0] - image.size[0]) // 2,
-                                                                  (max_size[1] - image.size[1]) // 2),
-                                                   fill='black')
-                    print(f"After padding: {padded_image.size}", flush=True)
-
-                    file_path = "shrunk.jpg"
-                    padded_image.save(file_path, format="JPEG")
-                    print("Saved processed image for classification", flush=True)
-
+                    padded_image = process_image(image)
                     np_arr = np.array(padded_image)
-                    print("Running classification...", flush=True)
-                    try:
-                        categories = classify(np_arr)
-                        if not categories:
-                            print("No valid classifications returned", flush=True)
-                            return
-                            
-                        category = categories[0]
-                        index = category.index
-                        score = category.score
-                        display_name = category.display_name
-                        category_name = category.category_name
-                        
-                        # Debug category object
-                        print("\nCategory details:", flush=True)
-                        print(f"Index: {index}", flush=True)
-                        print(f"Score: {score}", flush=True)
-                        print(f"Display name: {display_name}", flush=True)
-                        print(f"Category name: {category_name}", flush=True)
-                        print(f"Full category object: {category}", flush=True)
-                        
-                        # Try to get common name from category
-                        common_name = category_name if category_name else display_name.split(',')[0]
-                        print(f"Using common name: {common_name}", flush=True)
-                    except Exception as e:
-                        print(f"Error during classification: {str(e)}", flush=True)
-                        import traceback
-                        print(traceback.format_exc(), flush=True)
+
+                    categories = classify(np_arr)
+                    if not categories:
                         return
 
-                    print(f"\nClassification results:", flush=True)
-                    print(f"Species: {display_name}", flush=True)
-                    print(f"Confidence: {score:.2f}", flush=True)
+                    category = categories[0]
+                    index = category.index
+                    score = category.score
+                    display_name = category.display_name
+                    category_name = category.category_name
 
                     start_time = datetime.fromtimestamp(after_data['start_time'])
                     formatted_start_time = start_time.strftime("%Y-%m-%d %H:%M:%S")
 
-                    if index == 964:
-                        print(f"\nSkipping detection - Index 964 indicates non-bird classification", flush=True)
+                    if index == 964 or score <= config['classification']['threshold']:
                         return
-                        
-                    if score <= config['classification']['threshold']:
-                        print(f"\nSkipping detection - Score {score:.4f} below threshold {config['classification']['threshold']}", flush=True)
-                        return
-                        
-                    print(f"\nDetection passed threshold checks - proceeding with database storage", flush=True)
+
                     cursor = conn.cursor()
                     cursor.execute("SELECT * FROM detections WHERE frigate_event = ?", (frigate_event,))
                     result = cursor.fetchone()
 
                     if result is None:
-                        print("\nStoring new detection in database...", flush=True)
                         cursor.execute("""  
                             INSERT INTO detections (detection_time, detection_index, score,  
                             display_name, category_name, frigate_event, camera_name) VALUES (?, ?, ?, ?, ?, ?, ?)  
-                            """, (formatted_start_time, index, score, display_name, common_name, frigate_event, after_data['camera']))
+                            """, (formatted_start_time, index, score, display_name, category_name, frigate_event, after_data['camera']))
+                        
+                        common_name = get_common_name(display_name)
                         set_sublabel(frigate_url, frigate_event, common_name)
-                        print("Successfully stored new detection", flush=True)
+
+                        detection_id = cursor.lastrowid
                         
-                        # Prepare detection data for WebSocket
-                        detection_data = {
-                            "common_name": common_name,
-                            "scientific_name": display_name,
-                            "score": score,
-                            "frigate_event": frigate_event,
-                            "timestamp": formatted_start_time
-                        }
-                        
-                        # Send to WebSocket server asynchronously
+                        # Process special detection and WebSocket notification asynchronously
                         try:
                             loop = asyncio.new_event_loop()
                             asyncio.set_event_loop(loop)
-                            loop.run_until_complete(notify_websocket(detection_data))
+                            
+                            detection_data = {
+                                "common_name": common_name,
+                                "scientific_name": display_name,
+                                "score": score,
+                                "frigate_event": frigate_event,
+                                "timestamp": formatted_start_time
+                            }
+                            
+                            tasks = [
+                                process_special_detection(detection_id, score),
+                                notify_websocket(detection_data)
+                            ]
+                            loop.run_until_complete(asyncio.gather(*tasks))
                         except Exception as e:
-                            print(f"Error sending WebSocket notification: {str(e)}", flush=True)
+                            print(f"Async processing error: {str(e)}", flush=True)
                         finally:
                             if loop:
                                 loop.close()
                     else:
-                        print("\nChecking existing detection...", flush=True)
                         existing_score = result[3]
                         if score > existing_score:
-                            print(f"Updating record (new score {score:.2f} > old score {existing_score:.2f})", flush=True)
                             cursor.execute("""  
                                 UPDATE detections  
                                 SET detection_time = ?, detection_index = ?, score = ?, display_name = ?, category_name = ?  
                                 WHERE frigate_event = ?  
                                 """, (formatted_start_time, index, score, display_name, category_name, frigate_event))
+                            
+                            common_name = get_common_name(display_name)
                             set_sublabel(frigate_url, frigate_event, common_name)
-                        else:
-                            print(f"Keeping existing record (new score {score:.2f} <= old score {existing_score:.2f})", flush=True)
 
                     conn.commit()
-                    print("Database transaction complete", flush=True)
-
-                else:
-                    print(f"Failed to retrieve snapshot. Status: {response.status_code}, Response: {response.text}", flush=True)
 
         except Exception as e:
-            print(f"Error processing message: {str(e)}", flush=True)
-            import traceback
-            print(traceback.format_exc(), flush=True)
+            print(f"Message processing error: {str(e)}", flush=True)
 
     else:
         firstmessage = False
-        print("Skipping first MQTT message (connection message)", flush=True)
 
     conn.close()
 
-
 def setupdb():
-    print("\nSetting up database...", flush=True)
     conn = sqlite3.connect(DBPATH)
     cursor = conn.cursor()
     cursor.execute("""    
@@ -316,108 +233,59 @@ def setupdb():
         )    
     """)
     conn.commit()
-    print("Database setup complete", flush=True)
     conn.close()
-
 
 def load_config():
     global config
-    file_path = './config/config.yml'
-    print(f"\nLoading configuration from {file_path}...", flush=True)
-    with open(file_path, 'r') as config_file:
+    with open('./config/config.yml', 'r') as config_file:
         config = yaml.safe_load(config_file)
-    print("Configuration loaded successfully", flush=True)
-
-
-def run_webui():
-    print("\nStarting Flask web application...", flush=True)
-    print(f"Host: {config['webui']['host']}", flush=True)
-    print(f"Port: {config['webui']['port']}", flush=True)
-    app.run(debug=False, host=config['webui']['host'], port=config['webui']['port'])
-
 
 def run_mqtt_client():
-    print("\nInitializing MQTT client...", flush=True)
-    print(f"MQTT Server: {config['frigate']['mqtt_server']}", flush=True)
-    
     now = datetime.now()
-    current_time = now.strftime("%Y%m%d%H%M%S")
-    client_id = "birdspeciesid" + current_time
-    print(f"Client ID: {client_id}", flush=True)
-    
-    client = mqtt.Client(client_id)
+    client = mqtt.Client("birdspeciesid" + now.strftime("%Y%m%d%H%M%S"))
     client.on_message = on_message
     client.on_disconnect = on_disconnect
     client.on_connect = on_connect
 
     if config['frigate']['mqtt_auth']:
-        username = config['frigate']['mqtt_username']
-        print(f"Using MQTT authentication with username: {username}", flush=True)
-        client.username_pw_set(username, config['frigate']['mqtt_password'])
+        client.username_pw_set(config['frigate']['mqtt_username'], 
+                             config['frigate']['mqtt_password'])
 
-    try:
-        print(f"Connecting to MQTT server: {config['frigate']['mqtt_server']}", flush=True)
-        client.connect(config['frigate']['mqtt_server'])
-        print("Starting MQTT loop...", flush=True)
-        client.loop_forever()
-    except Exception as e:
-        print(f"Error in MQTT client: {str(e)}", flush=True)
-        import traceback
-        print(traceback.format_exc(), flush=True)
-
-
-def run_websocket_server():
-    print("\nStarting WebSocket server...", flush=True)
-    import uvicorn
-    uvicorn.run("websocket_server:app", host="0.0.0.0", port=8765)
+    client.connect(config['frigate']['mqtt_server'])
+    client.loop_forever()
 
 def main():
-    print("\n=== Starting Bird Species Identification System ===", flush=True)
-    now = datetime.now()
-    current_time = now.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-    print(f"Start Time: {current_time}", flush=True)
-    print(f"Python Version: {sys.version}", flush=True)
-
-    load_config()
-
-    print("\nInitializing TFLite model...", flush=True)
     try:
+        print("Starting Bird Species Identification System", flush=True)
+        load_config()
+        
+        global special_detection_service
+        special_detection_service = SpecialDetectionService(DBPATH)
+
+        # Initialize TFLite model
         base_options = core.BaseOptions(
-            file_name=config['classification']['model'], use_coral=False, num_threads=1)  # Reduced threads to avoid deadlock
+            file_name=config['classification']['model'], 
+            use_coral=False, 
+            num_threads=4)
         classification_options = processor.ClassificationOptions(
-            max_results=5, score_threshold=config['classification']['threshold'])
+            max_results=1, 
+            score_threshold=0)
         options = vision.ImageClassifierOptions(
-            base_options=base_options, classification_options=classification_options)
+            base_options=base_options, 
+            classification_options=classification_options)
 
         global classifier
         classifier = vision.ImageClassifier.create_from_options(options)
         print("TFLite model initialized successfully", flush=True)
-        print(f"Classification threshold: {config['classification']['threshold']}", flush=True)
+
+        setupdb()
+        
+        # Start MQTT client
+        run_mqtt_client()
+                
     except Exception as e:
-        print(f"Error initializing TFLite model: {str(e)}", flush=True)
-        import traceback
-        print(traceback.format_exc(), flush=True)
+        print(f"Error in main: {str(e)}", flush=True)
         raise
 
-    setupdb()
-    
-    print("\nStarting multiprocessing...", flush=True)
-    flask_process = multiprocessing.Process(target=run_webui)
-    mqtt_process = multiprocessing.Process(target=run_mqtt_client)
-    websocket_process = multiprocessing.Process(target=run_websocket_server)
-
-    flask_process.start()
-    print("Flask process started", flush=True)
-    mqtt_process.start()
-    print("MQTT process started", flush=True)
-    websocket_process.start()
-    print("WebSocket server started", flush=True)
-
-    flask_process.join()
-    mqtt_process.join()
-    websocket_process.join()
-
-
 if __name__ == '__main__':
-    print("Starting main process", flush=True)
     main()
