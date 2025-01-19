@@ -1,15 +1,13 @@
 # Core ML dependencies
-tensorflow==2.13.0  # Latest stable with Python 3.10 support
-tflite-support==0.4.4  # Latest available version
-opencv-python==4.8.1.78  # For image processing and quality assessment
+tensorflow==2.14.0
+opencv-python==4.8.1.78
 pillow==10.1.0
-scikit-image==0.22.0  # For additional image quality metrics
-numpy==1.24.3  # Pinned for TensorFlow compatibility
+numpy==1.26.2
 
 # Web framework and servers
 flask==3.0.0
 flask-cors==4.0.0
-gunicorn==21.2.0  # Production WSGI server
+gunicorn==21.2.0
 fastapi==0.100.0  # Pin to 0.100.x for compatibility
 uvicorn[standard]==0.23.0  # ASGI server for FastAPI
 websockets==11.0.0  # WebSocket support
@@ -25,7 +23,7 @@ pyowm==3.3.0  # OpenWeatherMap client
 paho-mqtt==1.6.1
 
 # Async support
-aiohttp==3.8.0
+aiohttp==3.8.0  # Pin to 3.8.0 for stability
 asyncio==3.4.3
 python-dateutil==2.8.2
 
