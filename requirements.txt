@@ -23,7 +23,6 @@ pyowm==3.3.0  # OpenWeatherMap client
 paho-mqtt==1.6.1
 
 # Async support
-aiohttp==3.8.0  # Pin to 3.8.0 for stability
 asyncio==3.4.3
 python-dateutil==2.8.2
 

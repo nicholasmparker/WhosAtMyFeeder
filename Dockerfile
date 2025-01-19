@@ -3,6 +3,7 @@ FROM python:3.11-slim
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
+    python3.11-dev \
     libgl1-mesa-glx \
     libglib2.0-0 \
     libgomp1 \
@@ -12,6 +13,12 @@ RUN apt-get update && apt-get install -y \
 
 # Create app directory
 WORKDIR /app
+
+# Upgrade pip and install build tools first
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Install aiohttp first since it needs to compile
+RUN pip install --no-cache-dir aiohttp==3.8.0
 
 # Install Python dependencies
 COPY requirements.txt .
