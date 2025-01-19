@@ -9,9 +9,10 @@ services:
       - ml_models:/app/models
       - ./input:/app/input
       - ./output:/app/output
+      - ./services:/app/services
     environment:
-      - PYTHONPATH=/app
-    command: ["python", "webui.py"]
+      - PYTHONPATH=/app/services/shared:/app/services
+    command: ["python", "services/webui/webui.py"]
     restart: unless-stopped
     depends_on:
       - init-data
@@ -22,12 +23,28 @@ services:
       - "8765:8765"
     volumes:
       - ./data:/data
+      - ./services:/app/services
     environment:
-      - PYTHONPATH=/app
-    command: ["python", "websocket_server.py"]
+      - PYTHONPATH=/app/services/shared:/app/services
+    command: ["python", "services/websocket/websocket_server.py"]
     restart: unless-stopped
     depends_on:
       - init-data
+
+  speciesid:
+    build: .
+    volumes:
+      - ./config:/app/config
+      - ./data:/data
+      - ml_models:/app/models
+      - ./services:/app/services
+    environment:
+      - PYTHONPATH=/app/services/shared:/app/services
+    command: ["python", "services/speciesid/speciesid.py"]
+    restart: unless-stopped
+    depends_on:
+      - init-data
+      - websocket
 
   frontend:
     build:
