@@ -8,6 +8,7 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': 'http://app:7766',
+      '/frigate': 'http://app:7766/frigate',
       '/ws': {
         target: 'ws://websocket:8765',
         ws: true,
