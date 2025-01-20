@@ -369,6 +369,60 @@ def api_image_quality(detection_id):
         print(f"Error assessing image quality: {e}", flush=True)
         abort(500, description=str(e))
 
+@app.route('/api/enhanced/<frigate_event>/snapshot.jpg')
+def enhanced_snapshot(frigate_event):
+    """Serve enhanced snapshot image."""
+    try:
+        # Get the enhanced image path from the database
+        conn = sqlite3.connect(DBPATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT enhanced_path
+            FROM image_quality
+            JOIN detections ON image_quality.detection_id = detections.id
+            WHERE detections.frigate_event = ? AND enhancement_status = 'completed'
+        """, (frigate_event,))
+        result = cursor.fetchone()
+        conn.close()
+
+        if result and result[0]:
+            enhanced_path = result[0]
+            if os.path.exists(enhanced_path):
+                return send_file(enhanced_path, mimetype='image/jpeg')
+
+        # If enhanced image not found, fall back to original
+        return frigate_snapshot(frigate_event)
+    except Exception as e:
+        print(f"Error serving enhanced snapshot: {e}", flush=True)
+        abort(500)
+
+@app.route('/api/enhanced/<frigate_event>/thumbnail.jpg')
+def enhanced_thumbnail(frigate_event):
+    """Serve enhanced thumbnail image."""
+    try:
+        # Get the enhanced thumbnail path from the database
+        conn = sqlite3.connect(DBPATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT enhanced_thumbnail_path
+            FROM image_quality
+            JOIN detections ON image_quality.detection_id = detections.id
+            WHERE detections.frigate_event = ? AND enhancement_status = 'completed'
+        """, (frigate_event,))
+        result = cursor.fetchone()
+        conn.close()
+
+        if result and result[0]:
+            enhanced_path = result[0]
+            if os.path.exists(enhanced_path):
+                return send_file(enhanced_path, mimetype='image/jpeg')
+
+        # If enhanced thumbnail not found, fall back to original
+        return frigate_thumbnail(frigate_event)
+    except Exception as e:
+        print(f"Error serving enhanced thumbnail: {e}", flush=True)
+        abort(500)
+
 @app.route('/api/image/enhance/<int:detection_id>')
 def api_enhance_image(detection_id):
     """Enhance image for a detection if needed."""
