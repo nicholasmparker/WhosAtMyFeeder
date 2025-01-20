@@ -1,0 +1,15 @@
+# Core ML dependencies
+tensorflow==2.13.0  # Downgraded to avoid conflict with tflite-support
+opencv-python==4.8.1.78
+pillow==10.1.0
+numpy==1.24.3  # Downgraded to match TensorFlow requirements
+scikit-image==0.22.0  # Added for image processing
+tflite-support==0.4.4  # Required for image classification tasks
+torch==2.1.2  # Added for RealESRGAN
+basicsr==1.4.2  # Added for RealESRGAN utilities
+
+# Vision and Image Analysis
+openai==1.3.7  # For Vision API image analysis
+
+# Progress bars for model operations
+tqdm==4.66.1  # For progress bars

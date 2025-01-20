@@ -1,0 +1,29 @@
+# Web framework and servers
+flask==2.3.3  # Last version before Werkzeug 3.0 requirement
+werkzeug==2.3.7  # Compatible with Flask 2.3.3
+jinja2==3.1.2  # Required by Flask 2.3.3
+flask-cors==4.0.0
+gunicorn==21.2.0
+fastapi==0.100.0  # Pin to 0.100.x for compatibility
+uvicorn[standard]==0.23.0  # ASGI server for FastAPI
+websockets==11.0.0  # WebSocket support
+pydantic<2.0.0  # For FastAPI 0.100.x compatibility
+aiohttp==3.7.4  # Using older version with pre-built wheels
+
+# Weather integration
+pyowm==3.3.0  # OpenWeatherMap client
+
+# MQTT client
+paho-mqtt==1.6.1
+
+# Async support
+asyncio==3.4.3
+python-dateutil==2.8.2
+
+# Database
+sqlalchemy==2.0.23  # For database connection pooling and ORM
+
+# Utilities
+pyyaml==6.0.1
+requests==2.31.0
+pytz==2023.3.post1  # For timezone handling
