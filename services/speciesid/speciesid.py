@@ -2,7 +2,6 @@ import os
 os.environ['FLASK_ENV'] = 'production'
 os.environ['FLASK_DEBUG'] = '0'
 
-import sqlite3
 import numpy as np
 from datetime import datetime
 import time
@@ -21,16 +20,16 @@ import aiohttp
 import asyncio
 from PIL import Image, ImageOps
 from io import BytesIO
+from sqlalchemy import text
 from shared.queries import get_common_name
 from concurrent.futures import ThreadPoolExecutor
 from shared.special_detection_service import SpecialDetectionService
+from shared.database import db
 
 classifier = None
 config = None
 firstmessage = True
 special_detection_service = None
-
-DBPATH = '/data/speciesid.db'  # Use absolute path to match Docker configuration
 
 def classify(image):
     try:
@@ -116,11 +115,57 @@ def process_image(image):
                 (max_size[1] - image.size[1]) // 2),
         fill='black')
 
-def on_message(client, userdata, message):
-    conn = sqlite3.connect(DBPATH)
-    loop = None
+def handle_detection(session, frigate_event, formatted_start_time, index, score, display_name, category_name, camera_name):
+    """Handle database operations for a detection within a transaction"""
+    # Check if detection exists
+    result = session.execute(
+        text("SELECT * FROM detections WHERE frigate_event = :event"),
+        {"event": frigate_event}
+    ).fetchone()
 
+    if result is None:
+        # Insert new detection
+        stmt = text("""
+            INSERT INTO detections (detection_time, detection_index, score,
+            display_name, category_name, frigate_event, camera_name)
+            VALUES (:time, :index, :score, :display, :category, :event, :camera)
+        """)
+        result = session.execute(stmt, {
+            "time": formatted_start_time,
+            "index": index,
+            "score": score,
+            "display": display_name,
+            "category": category_name,
+            "event": frigate_event,
+            "camera": camera_name
+        })
+        detection_id = result.lastrowid
+        return detection_id, True
+    else:
+        existing_score = result[3]
+        if score > existing_score:
+            # Update existing detection
+            stmt = text("""
+                UPDATE detections
+                SET detection_time = :time, detection_index = :index,
+                    score = :score, display_name = :display, category_name = :category
+                WHERE frigate_event = :event
+            """)
+            session.execute(stmt, {
+                "time": formatted_start_time,
+                "index": index,
+                "score": score,
+                "display": display_name,
+                "category": category_name,
+                "event": frigate_event
+            })
+            return result[0], True
+    return None, False
+
+def on_message(client, userdata, message):
+    loop = None
     global firstmessage
+
     if not firstmessage:
         try:
             payload_dict = json.loads(message.payload)
@@ -157,57 +202,47 @@ def on_message(client, userdata, message):
                     if index == 964 or score <= config['classification']['threshold']:
                         return
 
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT * FROM detections WHERE frigate_event = ?", (frigate_event,))
-                    result = cursor.fetchone()
+                    def process_db(session):
+                        detection_id, should_process = handle_detection(
+                            session, frigate_event, formatted_start_time,
+                            index, score, display_name, category_name,
+                            after_data['camera']
+                        )
+                        return detection_id, should_process
 
-                    if result is None:
-                        cursor.execute("""  
-                            INSERT INTO detections (detection_time, detection_index, score,  
-                            display_name, category_name, frigate_event, camera_name) VALUES (?, ?, ?, ?, ?, ?, ?)  
-                            """, (formatted_start_time, index, score, display_name, category_name, frigate_event, after_data['camera']))
+                    try:
+                        detection_id, should_process = db.execute_write(process_db)
                         
-                        common_name = get_common_name(display_name)
-                        set_sublabel(frigate_url, frigate_event, common_name)
-
-                        detection_id = cursor.lastrowid
-                        
-                        # Process special detection and WebSocket notification asynchronously
-                        try:
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            
-                            detection_data = {
-                                "common_name": common_name,
-                                "scientific_name": display_name,
-                                "score": score,
-                                "frigate_event": frigate_event,
-                                "timestamp": formatted_start_time
-                            }
-                            
-                            tasks = [
-                                process_special_detection(detection_id, score),
-                                notify_websocket(detection_data)
-                            ]
-                            loop.run_until_complete(asyncio.gather(*tasks))
-                        except Exception as e:
-                            print(f"Async processing error: {str(e)}", flush=True)
-                        finally:
-                            if loop:
-                                loop.close()
-                    else:
-                        existing_score = result[3]
-                        if score > existing_score:
-                            cursor.execute("""  
-                                UPDATE detections  
-                                SET detection_time = ?, detection_index = ?, score = ?, display_name = ?, category_name = ?  
-                                WHERE frigate_event = ?  
-                                """, (formatted_start_time, index, score, display_name, category_name, frigate_event))
-                            
+                        if should_process:
                             common_name = get_common_name(display_name)
                             set_sublabel(frigate_url, frigate_event, common_name)
 
-                    conn.commit()
+                            # Process special detection and WebSocket notification asynchronously
+                            try:
+                                loop = asyncio.new_event_loop()
+                                asyncio.set_event_loop(loop)
+                                
+                                detection_data = {
+                                    "common_name": common_name,
+                                    "scientific_name": display_name,
+                                    "score": score,
+                                    "frigate_event": frigate_event,
+                                    "timestamp": formatted_start_time
+                                }
+                                
+                                tasks = [
+                                    process_special_detection(detection_id, score),
+                                    notify_websocket(detection_data)
+                                ]
+                                loop.run_until_complete(asyncio.gather(*tasks))
+                            except Exception as e:
+                                print(f"Async processing error: {str(e)}", flush=True)
+                            finally:
+                                if loop:
+                                    loop.close()
+
+                    except Exception as e:
+                        print(f"Database operation error: {str(e)}", flush=True)
 
         except Exception as e:
             print(f"Message processing error: {str(e)}", flush=True)
@@ -215,25 +250,23 @@ def on_message(client, userdata, message):
     else:
         firstmessage = False
 
-    conn.close()
-
 def setupdb():
-    conn = sqlite3.connect(DBPATH)
-    cursor = conn.cursor()
-    cursor.execute("""    
-        CREATE TABLE IF NOT EXISTS detections (    
-            id INTEGER PRIMARY KEY AUTOINCREMENT,  
-            detection_time TIMESTAMP NOT NULL,  
-            detection_index INTEGER NOT NULL,  
-            score REAL NOT NULL,  
-            display_name TEXT NOT NULL,  
-            category_name TEXT NOT NULL,  
-            frigate_event TEXT NOT NULL UNIQUE,
-            camera_name TEXT NOT NULL 
-        )    
-    """)
-    conn.commit()
-    conn.close()
+    """Initialize the database schema"""
+    def do_setup(session):
+        session.execute(text("""    
+            CREATE TABLE IF NOT EXISTS detections (    
+                id INTEGER PRIMARY KEY AUTOINCREMENT,  
+                detection_time TIMESTAMP NOT NULL,  
+                detection_index INTEGER NOT NULL,  
+                score REAL NOT NULL,  
+                display_name TEXT NOT NULL,  
+                category_name TEXT NOT NULL,  
+                frigate_event TEXT NOT NULL UNIQUE,
+                camera_name TEXT NOT NULL 
+            )    
+        """))
+    
+    db.execute_write(do_setup)
 
 def load_config():
     global config
@@ -260,7 +293,7 @@ def main():
         load_config()
         
         global special_detection_service
-        special_detection_service = SpecialDetectionService(DBPATH)
+        special_detection_service = SpecialDetectionService('/data/speciesid.db')
 
         # Initialize TFLite model
         base_options = core.BaseOptions(

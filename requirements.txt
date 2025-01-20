@@ -31,6 +31,9 @@ paho-mqtt==1.6.1
 asyncio==3.4.3
 python-dateutil==2.8.2
 
+# Database
+sqlalchemy==2.0.23  # For database connection pooling and ORM
+
 # Utilities
 pyyaml==6.0.1
 requests==2.31.0

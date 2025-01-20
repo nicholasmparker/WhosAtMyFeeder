@@ -1,8 +1,8 @@
-import sqlite3
-import csv
 from pathlib import Path
+from sqlalchemy import text
+from services.shared.database import db
 
-# Common North American birds with scientific names
+print("Setting up database...")
 BIRDS = [
     # Original entries from init_db.sql
     ('Cardinalis cardinalis', 'Northern Cardinal'),
@@ -51,46 +51,43 @@ BIRDS = [
     ('Carduelis tristis', 'American Goldfinch'),
     ('Haemorhous purpureus', 'Purple Finch'),
     ('Carpodacus mexicanus', 'House Finch'),
+    ('Sialia mexicana', 'Western Bluebird'),
 ]
 
-def setup_database(db_path):
-    """Create and populate the birdnames table."""
-    print(f"Setting up database at {db_path}")
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    # Create table if it doesn't exist
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS birdnames (
-        scientific_name TEXT PRIMARY KEY,
-        common_name TEXT NOT NULL
-    )
-    """)
-
-    # Insert bird data
-    print("Populating birdnames table...")
-    cursor.executemany(
-        "INSERT OR REPLACE INTO birdnames (scientific_name, common_name) VALUES (?, ?)",
-        BIRDS
-    )
-
-    conn.commit()
+def setup_database():
+    """Create and populate the birdnames table using SQLAlchemy."""
     
-    # Verify the data
-    cursor.execute("SELECT COUNT(*) FROM birdnames")
-    count = cursor.fetchone()[0]
-    print(f"Added {count} bird species to database")
-    
-    # Show some sample entries
-    print("\nSample entries:")
-    cursor.execute("SELECT * FROM birdnames LIMIT 5")
-    for row in cursor.fetchall():
-        print(f"  {row[1]} ({row[0]})")
-    
-    conn.close()
-    print("\nDatabase setup complete!")
+    def do_setup(session):
+        # Create table if it doesn't exist
+        session.execute(text("""
+            CREATE TABLE IF NOT EXISTS birdnames (
+                scientific_name TEXT PRIMARY KEY,
+                common_name TEXT NOT NULL
+            )
+        """))
+        
+        # Insert bird data
+        print("Populating birdnames table...")
+        for scientific_name, common_name in BIRDS:
+            session.execute(
+                text("INSERT OR REPLACE INTO birdnames (scientific_name, common_name) VALUES (:scientific, :common)"),
+                {"scientific": scientific_name, "common": common_name}
+            )
+        
+        # Verify the data
+        count = session.execute(text("SELECT COUNT(*) FROM birdnames")).scalar()
+        print(f"Added {count} bird species to database")
+        
+        # Show some sample entries
+        print("\nSample entries:")
+        rows = session.execute(text("SELECT * FROM birdnames LIMIT 5")).fetchall()
+        for row in rows:
+            print(f"  {row[1]} ({row[0]})")
 
 if __name__ == "__main__":
-    db_path = "speciesid.db"  # Use the same path as in your application
-    setup_database(db_path)
-    print(f"\nTo use this database, ensure your application is configured to use: {Path(db_path).absolute()}")
+    try:
+        # Execute setup within a transaction
+        db.execute_write(do_setup)
+        print("\nDatabase setup complete!")
+    except Exception as e:
+        print(f"Error during database setup: {str(e)}")
