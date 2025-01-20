@@ -1,49 +1,77 @@
+version: '3.8'
+
+x-buildkit-config: &buildkit
+  build:
+    args:
+      BUILDKIT_INLINE_CACHE: 1
+      DOCKER_BUILDKIT: 1
+      COMPOSE_DOCKER_CLI_BUILD: 1
+    context: .
+
 services:
   app:
-    build: .
+    <<: *buildkit
+    build:
+      context: .
+      dockerfile: services/webui/Dockerfile
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7766/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     ports:
       - "7766:7766"
     volumes:
-      - ./config:/app/config
+      - ./config:/app/config:ro
       - ./data:/data
-      - ./models:/app/models
-      - ./input:/app/input
+      - ./models:/app/models:ro
+      - ./input:/app/input:ro
       - ./output:/app/output
-      - ./services:/app/services
     environment:
       - PYTHONPATH=/app/services/shared:/app/services
     command: ["python", "services/webui/webui.py"]
     restart: unless-stopped
-    depends_on:
-      - init-data
-
   websocket:
-    build: .
+    <<: *buildkit
+    build:
+      context: .
+      dockerfile: services/websocket/Dockerfile
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8765/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     ports:
       - "8765:8765"
     volumes:
       - ./data:/data
-      - ./services:/app/services
     environment:
       - PYTHONPATH=/app/services/shared:/app/services
     command: ["python", "services/websocket/websocket_server.py"]
     restart: unless-stopped
-    depends_on:
-      - init-data
-
   speciesid:
-    build: .
+    <<: *buildkit
+    build:
+      context: .
+      dockerfile: services/speciesid/Dockerfile
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep '[p]ython.*speciesid.py' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     volumes:
-      - ./config:/app/config
+      - ./config:/app/config:ro
       - ./data:/data
-      - ./models:/app/models
-      - ./services:/app/services
+      - ./models:/app/models:ro
+      - ./models/model.tflite:/app/model.tflite:ro
     environment:
       - PYTHONPATH=/app/services/shared:/app/services
     command: ["python", "services/speciesid/speciesid.py"]
     restart: unless-stopped
     depends_on:
-      - init-data
       - websocket
 
   frontend:
@@ -62,12 +90,6 @@ services:
     depends_on:
       - app
       - websocket
-
-  init-data:
-    image: busybox
-    volumes:
-      - ./data:/data
-    command: mkdir -p /data
 
 volumes:
   frontend_node_modules:
