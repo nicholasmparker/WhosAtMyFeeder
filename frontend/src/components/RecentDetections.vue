@@ -82,7 +82,7 @@
             <td class="px-6 py-4 whitespace-nowrap">
               <div class="relative group">
                 <img 
-                  :src="getThumbnailUrl(detection.frigate_event, detection.enhancement_status === 'completed' && showEnhanced)" 
+                  :src="detection.enhancement_status === 'completed' ? `/api/enhanced/${detection.frigate_event}/thumbnail.jpg` : `/frigate/${detection.frigate_event}/thumbnail.jpg`" 
                   alt="Bird Detection"
                   class="h-16 w-16 object-cover rounded-lg shadow-sm cursor-pointer transform transition duration-200 group-hover:scale-105"
                   @click="showSnapshot(detection)"
@@ -239,12 +239,6 @@ const formatDateTime = (dateTime: string) => {
     dateStyle: 'medium',
     timeStyle: 'short'
   }).format(date)
-}
-
-const getThumbnailUrl = (frigateEvent: string, enhanced = false) => {
-  return enhanced 
-    ? `/api/enhanced/${frigateEvent}/thumbnail.jpg`
-    : `/frigate/${frigateEvent}/thumbnail.jpg`
 }
 
 const getSnapshotUrl = (frigateEvent: string, enhanced = false) => {
