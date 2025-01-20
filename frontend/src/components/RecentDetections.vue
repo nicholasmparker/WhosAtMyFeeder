@@ -17,6 +17,9 @@
               Confidence
             </th>
             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Image Quality
+            </th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Image
             </th>
           </tr>
@@ -48,9 +51,38 @@
               </div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
+              <div v-if="detection.quality_score !== undefined" class="flex items-center">
+                <div 
+                  class="h-2 w-16 bg-gray-200 rounded-full overflow-hidden"
+                  role="progressbar"
+                  :aria-valuenow="detection.quality_score * 100"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                >
+                  <div 
+                    class="h-full"
+                    :class="{
+                      'bg-green-600': detection.quality_score >= 0.7,
+                      'bg-yellow-500': detection.quality_score >= 0.4 && detection.quality_score < 0.7,
+                      'bg-red-500': detection.quality_score < 0.4
+                    }"
+                    :style="{ width: `${detection.quality_score * 100}%` }"
+                  ></div>
+                </div>
+                <span class="ml-2 text-sm text-gray-700">{{ (detection.quality_score * 100).toFixed(0) }}%</span>
+                <span v-if="detection.enhancement_status === 'completed'" 
+                      class="ml-2 text-xs text-green-600">
+                  Enhanced
+                </span>
+              </div>
+              <div v-else class="text-sm text-gray-500">
+                Analyzing...
+              </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
               <div class="relative group">
                 <img 
-                  :src="getThumbnailUrl(detection.frigate_event)" 
+                  :src="getThumbnailUrl(detection.frigate_event, detection.enhancement_status === 'completed' && showEnhanced)" 
                   alt="Bird Detection"
                   class="h-16 w-16 object-cover rounded-lg shadow-sm cursor-pointer transform transition duration-200 group-hover:scale-105"
                   @click="showSnapshot(detection)"
@@ -83,25 +115,71 @@
             <div class="sm:flex sm:items-start">
               <div class="w-full">
                 <div class="flex justify-between items-center px-6 py-3 border-b border-gray-200">
-                  <h3 class="text-lg font-medium text-gray-900">
-                    {{ selectedDetection?.common_name }}
-                  </h3>
-                  <button 
-                    @click="closeModal"
-                    class="text-gray-400 hover:text-gray-500 focus:outline-none"
-                  >
-                    <span class="sr-only">Close</span>
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+                  <div>
+                    <h3 class="text-lg font-medium text-gray-900">
+                      {{ selectedDetection?.common_name }}
+                    </h3>
+                    <div v-if="selectedDetection?.quality_score !== undefined" class="mt-1 text-sm text-gray-500">
+                      Quality Score: {{ (selectedDetection.quality_score * 100).toFixed(0) }}%
+                      <span v-if="selectedDetection.quality_improvement" class="text-green-600 ml-2">
+                        ({{ selectedDetection.quality_improvement > 0 ? '+' : '' }}{{ (selectedDetection.quality_improvement * 100).toFixed(0) }}% improvement)
+                      </span>
+                    </div>
+                  </div>
+                  <div class="flex items-center space-x-4">
+                    <div v-if="selectedDetection?.enhancement_status === 'completed'" class="flex items-center">
+                      <button
+                        @click="toggleComparisonView"
+                        class="mr-4 px-3 py-1 text-sm font-medium text-gray-700 hover:text-gray-900 focus:outline-none"
+                      >
+                        {{ isComparisonView ? 'Single View' : 'Compare' }}
+                      </button>
+                      <button
+                        v-if="!isComparisonView"
+                        @click="toggleEnhanced"
+                        class="px-3 py-1 text-sm font-medium rounded-md"
+                        :class="showEnhanced ? 'bg-primary-100 text-primary-700' : 'text-gray-700 hover:text-gray-900'"
+                      >
+                        {{ showEnhanced ? 'Show Original' : 'Show Enhanced' }}
+                      </button>
+                    </div>
+                    <button 
+                      @click="closeModal"
+                      class="text-gray-400 hover:text-gray-500 focus:outline-none"
+                    >
+                      <span class="sr-only">Close</span>
+                      <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 <div class="px-6 py-4">
-                  <img 
-                    :src="currentSnapshotUrl" 
-                    alt="Bird Detection Snapshot" 
-                    class="w-full h-auto rounded-lg shadow-lg"
-                  />
+                  <div v-if="isComparisonView && selectedDetection?.enhancement_status === 'completed'" class="grid grid-cols-2 gap-4">
+                    <div>
+                      <div class="text-sm font-medium text-gray-500 mb-2">Original</div>
+                      <img 
+                        :src="getSnapshotUrl(selectedDetection.frigate_event, false)" 
+                        alt="Original Bird Detection Snapshot" 
+                        class="w-full h-auto rounded-lg shadow-lg"
+                      />
+                    </div>
+                    <div>
+                      <div class="text-sm font-medium text-gray-500 mb-2">Enhanced</div>
+                      <img 
+                        :src="getSnapshotUrl(selectedDetection.frigate_event, true)" 
+                        alt="Enhanced Bird Detection Snapshot" 
+                        class="w-full h-auto rounded-lg shadow-lg"
+                      />
+                    </div>
+                  </div>
+                  <div v-else>
+                    <img 
+                      :src="currentSnapshotUrl" 
+                      alt="Bird Detection Snapshot" 
+                      class="w-full h-auto rounded-lg shadow-lg"
+                    />
+                  </div>
                   <div class="mt-4 flex justify-between items-center">
                     <div class="text-sm text-gray-500">
                       Detected at {{ formatDateTime(selectedDetection?.detection_time || '') }}
@@ -138,6 +216,9 @@ interface Detection {
   scientific_name: string
   score: number
   frigate_event: string
+  quality_score?: number
+  enhancement_status?: 'pending' | 'completed' | 'failed'
+  quality_improvement?: number
 }
 
 interface Props {
@@ -149,6 +230,8 @@ const currentSnapshotUrl = ref('')
 const currentClipUrl = ref('')
 const isModalOpen = ref(false)
 const selectedDetection = ref<Detection | null>(null)
+const showEnhanced = ref(false)
+const isComparisonView = ref(false)
 
 const formatDateTime = (dateTime: string) => {
   const date = new Date(dateTime)
@@ -158,20 +241,48 @@ const formatDateTime = (dateTime: string) => {
   }).format(date)
 }
 
-const getThumbnailUrl = (frigateEvent: string) => {
-  return `/frigate/${frigateEvent}/thumbnail.jpg`
+const getThumbnailUrl = (frigateEvent: string, enhanced = false) => {
+  return enhanced 
+    ? `/api/enhanced/${frigateEvent}/thumbnail.jpg`
+    : `/frigate/${frigateEvent}/thumbnail.jpg`
+}
+
+const getSnapshotUrl = (frigateEvent: string, enhanced = false) => {
+  return enhanced 
+    ? `/api/enhanced/${frigateEvent}/snapshot.jpg`
+    : `/frigate/${frigateEvent}/snapshot.jpg`
 }
 
 const showSnapshot = (detection: Detection) => {
   selectedDetection.value = detection
-  currentSnapshotUrl.value = `/frigate/${detection.frigate_event}/snapshot.jpg`
+  currentSnapshotUrl.value = getSnapshotUrl(
+    detection.frigate_event, 
+    detection.enhancement_status === 'completed' && showEnhanced.value
+  )
   currentClipUrl.value = `/frigate/${detection.frigate_event}/clip.mp4`
   isModalOpen.value = true
+}
+
+const toggleEnhanced = () => {
+  showEnhanced.value = !showEnhanced.value
+  if (selectedDetection.value) {
+    currentSnapshotUrl.value = getSnapshotUrl(
+      selectedDetection.value.frigate_event,
+      showEnhanced.value
+    )
+  }
+}
+
+const toggleComparisonView = () => {
+  isComparisonView.value = !isComparisonView.value
+  showEnhanced.value = false
 }
 
 const closeModal = () => {
   isModalOpen.value = false
   selectedDetection.value = null
+  showEnhanced.value = false
+  isComparisonView.value = false
 }
 
 const checkTransparentImage = (event: Event) => {

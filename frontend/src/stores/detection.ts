@@ -8,6 +8,9 @@ interface Detection {
   scientific_name: string
   score: number
   frigate_event: string
+  quality_score?: number
+  enhancement_status?: 'pending' | 'completed' | 'failed'
+  quality_improvement?: number
 }
 
 interface DailySummary {
