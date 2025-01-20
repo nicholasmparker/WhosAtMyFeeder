@@ -1,5 +1,12 @@
 <template>
-  <div class="space-y-6">
+  <div class="container mx-auto px-4 py-8 space-y-6">
+    <!-- Weather Correlation Chart -->
+    <WeatherCorrelationChart 
+      :date="date" 
+      :hour="hour" 
+      class="max-w-full"
+    />
+
     <div class="bg-white shadow-sm rounded-lg overflow-hidden">
       <div class="px-6 py-4 border-b border-gray-200">
         <h2 class="text-lg font-medium text-gray-900">Detections for {{ formattedDateTime }}</h2>
@@ -136,6 +143,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import axios from 'axios'
+import WeatherCorrelationChart from '@/components/WeatherCorrelationChart.vue'
 
 interface Detection {
   id: number
@@ -152,29 +160,40 @@ const currentSnapshotUrl = ref('')
 const currentClipUrl = ref('')
 const isModalOpen = ref(false)
 
-const getCurrentDate = (): string => {
-  const today = new Date()
-  return today.toISOString().split('T')[0]
-}
+const currentDate = ref<string>('')
+const currentHour = ref<string>('')
 
-const getCurrentHour = (): string => {
-  const now = new Date()
-  return now.getHours().toString()
-}
-
-const date = computed((): string => {
+const getInitialDate = async (): Promise<string> => {
   const routeDate = Array.isArray(route.params.date) 
     ? route.params.date[0] 
     : (route.params.date as string | undefined)
-  return routeDate || getCurrentDate()
-})
+  
+  if (routeDate) {
+    return routeDate
+  }
 
-const hour = computed((): string => {
+  try {
+    const response = await axios.get('/api/earliest-detection-date')
+    return response.data.date || new Date().toISOString().split('T')[0]
+  } catch (error) {
+    console.error('Error fetching earliest date:', error)
+    return new Date().toISOString().split('T')[0]
+  }
+}
+
+const getCurrentHour = (): string => {
   const routeHour = Array.isArray(route.params.hour)
     ? route.params.hour[0]
     : (route.params.hour as string | undefined)
-  return routeHour || getCurrentHour()
-})
+  
+  if (routeHour) {
+    return routeHour
+  }
+  return new Date().getHours().toString()
+}
+
+const date = computed(() => currentDate.value)
+const hour = computed(() => currentHour.value)
 
 const formattedDateTime = computed(() => {
   const dateObj = new Date(date.value)
@@ -217,7 +236,9 @@ const closeModal = () => {
 
 onMounted(async () => {
   try {
-    const response = await axios.get(`/api/detections/by-hour/${date.value}/${hour.value}`)
+    currentDate.value = await getInitialDate()
+    currentHour.value = getCurrentHour()
+    const response = await axios.get(`/api/detections/by-hour/${currentDate.value}/${currentHour.value}`)
     detections.value = response.data
   } catch (error) {
     console.error('Failed to fetch detections:', error)

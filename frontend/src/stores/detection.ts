@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import axios from 'axios'
+import api from '@/api/axios'
 
 interface Detection {
   id: number
@@ -40,7 +40,7 @@ export const useDetectionStore = defineStore('detection', {
     async fetchRecentDetections() {
       this.loading = true
       try {
-        const response = await axios.get('/api/detections/recent')
+        const response = await api.get('/api/detections/recent')
         this.recentDetections = response.data
         this.hasData = response.data.length > 0
         this.error = null
@@ -59,7 +59,7 @@ export const useDetectionStore = defineStore('detection', {
     async fetchDailySummary(date: string) {
       this.loading = true
       try {
-        const response = await axios.get(`/api/detections/daily-summary/${date}`)
+        const response = await api.get(`/api/detections/daily-summary/${date}`)
         this.dailySummary = response.data
         this.hasData = Object.keys(response.data).length > 0
         this.error = null

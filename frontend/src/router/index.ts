@@ -4,6 +4,7 @@ import DailySummaryView from '@/views/DailySummaryView.vue'
 import DetectionsByHourView from '@/views/DetectionsByHourView.vue'
 import DetectionsBySpeciesView from '@/views/DetectionsBySpeciesView.vue'
 import WeatherInsightsView from '@/views/WeatherInsightsView.vue'
+import SpecialDetectionsView from '@/views/SpecialDetectionsView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -34,6 +35,11 @@ const router = createRouter({
       path: '/weather-insights',
       name: 'weather-insights',
       component: WeatherInsightsView
+    },
+    {
+      path: '/special-detections',
+      name: 'special-detections',
+      component: SpecialDetectionsView
     }
   ]
 })

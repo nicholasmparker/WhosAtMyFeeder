@@ -43,6 +43,13 @@
               >
                 Weather Analysis
               </router-link>
+              <router-link 
+                to="/special-detections" 
+                class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                active-class="text-primary-600"
+              >
+                Special Detections
+              </router-link>
             </div>
           </div>
 
@@ -150,6 +157,13 @@
             active-class="bg-primary-50 text-primary-700"
           >
             Weather Analysis
+          </router-link>
+          <router-link 
+            to="/special-detections" 
+            class="block px-3 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+            active-class="bg-primary-50 text-primary-700"
+          >
+            Special Detections
           </router-link>
         </div>
       </div>

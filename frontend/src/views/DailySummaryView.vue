@@ -21,28 +21,37 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useDetectionStore } from '@/stores/detection'
 import DailySummaryTable from '@/components/DailySummaryTable.vue'
+import axios from 'axios'
 
 const route = useRoute()
 const detectionStore = useDetectionStore()
+const currentDate = ref<string>('')
 
-const getCurrentDate = (): string => {
-  const today = new Date()
-  return today.toISOString().split('T')[0]
-}
-
-const date = computed((): string => {
+const getInitialDate = async (): Promise<string> => {
   const routeDate = Array.isArray(route.params.date) 
     ? route.params.date[0] 
     : (route.params.date as string | undefined)
-  return routeDate || getCurrentDate()
-})
+  
+  if (routeDate) {
+    return routeDate
+  }
+
+  try {
+    const response = await axios.get('/api/earliest-detection-date')
+    return response.data.date || new Date().toISOString().split('T')[0]
+  } catch (error) {
+    console.error('Error fetching earliest date:', error)
+    return new Date().toISOString().split('T')[0]
+  }
+}
 
 const formattedDate = computed((): string => {
-  const dateObj = new Date(date.value)
+  if (!currentDate.value) return ''
+  const dateObj = new Date(currentDate.value)
   return dateObj.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
@@ -52,7 +61,8 @@ const formattedDate = computed((): string => {
 })
 
 onMounted(async () => {
-  await detectionStore.fetchDailySummary(date.value)
+  currentDate.value = await getInitialDate()
+  await detectionStore.fetchDailySummary(currentDate.value)
 })
 </script>
 
