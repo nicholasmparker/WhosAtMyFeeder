@@ -26,48 +26,30 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# IDEs and editors
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-*~
-
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
 
 # Project specific
-data/
+/data/
+/models/
+/input/
+/output/
 *.db
 *.sqlite3
-*.log
-/static/images/*
-!/static/images/1x1.png
+*.tflite
 
-# Configuration
-/config/config.yml
-/config/config.yml.backup
-.env
-.env.*
+# TypeScript
+*.tsbuildinfo
 
-# ML Models
-/models/*
-!/models/.gitkeep
-/test_data/*
-!/test_data/.gitkeep
-
-# Docker
-.docker/
-docker-compose.override.yml
-
-# API Keys and Secrets
-*.pem
-*.key
-*.crt
-*.cert
+# Aider
+.aider*
