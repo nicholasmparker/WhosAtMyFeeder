@@ -2,21 +2,29 @@ import sqlite3
 from datetime import datetime, timedelta
 import json
 from typing import Dict, List, Optional, Tuple
+from contextlib import contextmanager
 
 class SpecialDetectionService:
     def __init__(self, db_path: str = "/data/speciesid.db"):
         self.db_path = db_path
 
+    @contextmanager
     def _get_db_connection(self) -> sqlite3.Connection:
-        """Create a database connection."""
-        conn = sqlite3.connect(self.db_path)
+        """Create a database connection using context manager."""
+        conn = sqlite3.connect(self.db_path, timeout=20)  # Add timeout to prevent immediate lock errors
         conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            yield conn
+            conn.commit()  # Auto-commit if no exceptions
+        except Exception as e:
+            conn.rollback()  # Rollback on error
+            raise e
+        finally:
+            conn.close()
 
     def update_rarity_scores(self) -> None:
         """Update rarity scores for all species based on detection history."""
-        conn = self._get_db_connection()
-        try:
+        with self._get_db_connection() as conn:
             # Get total detection counts for each species
             cursor = conn.execute("""
                 SELECT 
@@ -59,21 +67,12 @@ class SpecialDetectionService:
                     species['last_seen'],
                     species['visit_count']
                 ))
-            
-            conn.commit()
-        finally:
-            conn.close()
 
     def evaluate_image_quality(self, detection_id: int, image_data: Dict = None) -> None:
         """
         Evaluate and store image quality metrics for a detection using both local and OpenAI Vision analysis.
-        
-        Args:
-            detection_id: The ID of the detection
-            image_data: Optional dictionary containing OpenAI Vision analysis results
         """
-        conn = self._get_db_connection()
-        try:
+        with self._get_db_connection() as conn:
             # Get image path
             cursor = conn.execute("""
                 SELECT frigate_event
@@ -93,8 +92,8 @@ class SpecialDetectionService:
             
             # 1. OpenAI Vision scores (if provided)
             if image_data:
-                clarity_score = image_data.get('clarity_score', 0.0)
-                composition_score = image_data.get('composition_score', 0.0)
+                clarity_score = image_data.get('clarity', 0.0)
+                composition_score = image_data.get('composition', 0.0)
                 behavior_tags.extend(image_data.get('behaviors', []))
             
             # 2. Local processing scores (from vision_analysis_cache)
@@ -132,18 +131,14 @@ class SpecialDetectionService:
                 (detection_id, clarity_score, composition_score, behavior_tags, visibility_score)
                 VALUES (?, ?, ?, ?, ?)
             """, (detection_id, clarity_score, composition_score, behavior_tags_json, visibility_score))
-            conn.commit()
             
             print(f"Updated quality scores for detection {detection_id}: clarity={clarity_score:.2f}, composition={composition_score:.2f}")
-        finally:
-            conn.close()
 
     def create_special_detection(self, detection_id: int) -> Optional[int]:
         """
         Evaluate a detection and create a special detection entry if it qualifies.
         """
-        conn = self._get_db_connection()
-        try:
+        with self._get_db_connection() as conn:
             # Get detection details including rarity and quality scores
             cursor = conn.execute("""
                 SELECT 
@@ -183,27 +178,23 @@ class SpecialDetectionService:
                         (detection_id, highlight_type, score, created_at)
                         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
                     """, (detection_id, highlight_type, final_score))
-                    conn.commit()
                     return cursor.lastrowid
                 except sqlite3.Error as e:
                     print(f"Database error: {e}")
                     return None
             
             return None
-        finally:
-            conn.close()
 
     def get_recent_special_detections(self, limit: int = 10) -> List[Dict]:
         """Get recent special detections with their details."""
-        conn = self._get_db_connection()
-        try:
+        with self._get_db_connection() as conn:
             cursor = conn.execute("""
                 SELECT 
                     sd.*,
                     d.detection_time,
                     d.display_name,
                     d.score as detection_score,
-                    d.frigate_event,  -- Add frigate_event to the query
+                    d.frigate_event,
                     b.common_name,
                     iq.clarity_score,
                     iq.composition_score,
@@ -217,26 +208,19 @@ class SpecialDetectionService:
             """, (limit,))
             
             return [dict(row) for row in cursor.fetchall()]
-        finally:
-            conn.close()
 
     def update_community_votes(self, special_detection_id: int, increment: bool = True) -> None:
         """Update the community vote count for a special detection."""
-        conn = self._get_db_connection()
-        try:
+        with self._get_db_connection() as conn:
             conn.execute("""
                 UPDATE special_detections
                 SET community_votes = community_votes + ?
                 WHERE id = ?
             """, (1 if increment else -1, special_detection_id))
-            conn.commit()
-        finally:
-            conn.close()
 
     def toggle_featured_status(self, special_detection_id: int) -> bool:
         """Toggle the featured status of a special detection."""
-        conn = self._get_db_connection()
-        try:
+        with self._get_db_connection() as conn:
             cursor = conn.execute("""
                 UPDATE special_detections
                 SET featured_status = NOT featured_status
@@ -244,7 +228,4 @@ class SpecialDetectionService:
                 RETURNING featured_status
             """, (special_detection_id,))
             result = cursor.fetchone()
-            conn.commit()
             return bool(result['featured_status']) if result else False
-        finally:
-            conn.close()
