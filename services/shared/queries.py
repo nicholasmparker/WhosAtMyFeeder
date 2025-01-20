@@ -22,10 +22,19 @@ def get_common_name(scientific_name):
 
 def recent_detections(num_detections):
     def do_query(session):
-        results = session.execute(
-            text("SELECT * FROM detections ORDER BY detection_time DESC LIMIT :limit"),
-            {"limit": num_detections}
-        ).fetchall()
+        query = """
+            SELECT 
+                d.*,
+                iq.clarity_score,
+                iq.composition_score,
+                iq.enhancement_status,
+                iq.quality_improvement
+            FROM detections d
+            LEFT JOIN image_quality iq ON d.id = iq.detection_id
+            ORDER BY d.detection_time DESC
+            LIMIT :limit
+        """
+        results = session.execute(text(query), {"limit": num_detections}).fetchall()
         
         formatted_results = []
         for result in results:
@@ -38,7 +47,11 @@ def recent_detections(num_detections):
                 'category_name': result[5],
                 'frigate_event': result[6],
                 'camera_name': result[7],
-                'common_name': get_common_name(result[4])
+                'common_name': get_common_name(result[4]),
+                'quality_score': result[8] if result[8] is not None else None,
+                'composition_score': result[9] if result[9] is not None else None,
+                'enhancement_status': result[10],
+                'quality_improvement': result[11] if result[11] is not None else None
             }
             formatted_results.append(detection)
         
