@@ -6,7 +6,7 @@ services:
     volumes:
       - ./config:/app/config
       - ./data:/data
-      - ml_models:/app/models
+      - ./models:/app/models
       - ./input:/app/input
       - ./output:/app/output
       - ./services:/app/services
@@ -36,7 +36,7 @@ services:
     volumes:
       - ./config:/app/config
       - ./data:/data
-      - ml_models:/app/models
+      - ./models:/app/models
       - ./services:/app/services
     environment:
       - PYTHONPATH=/app/services/shared:/app/services
@@ -70,9 +70,6 @@ services:
     command: mkdir -p /data
 
 volumes:
-  ml_models:
-    external: true
-    name: whosatmyfeeder_ml_models
   frontend_node_modules:
 
 networks:
