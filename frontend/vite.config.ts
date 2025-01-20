@@ -7,8 +7,14 @@ export default defineConfig({
   server: {
     host: true,
     proxy: {
-      '/api': 'http://app:7766',
-      '/frigate': 'http://app:7766/frigate',
+      '/api': {
+        target: 'http://app:7766',
+        changeOrigin: true
+      },
+      '/frigate': {
+        target: 'http://app:7766',
+        changeOrigin: true
+      },
       '/ws': {
         target: 'ws://websocket:8765',
         ws: true,
