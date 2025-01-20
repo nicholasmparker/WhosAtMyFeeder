@@ -47,12 +47,10 @@ ENV/
 *.db
 *.sqlite3
 *.tflite
+config/config.yml  # Ignore local config
 
 # TypeScript
 *.tsbuildinfo
-
-# Aider
-.aider*
 
 # macOS
 .DS_Store
@@ -66,3 +64,6 @@ ENV/
 .Trashes
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
+
+# Aider
+.aider*
