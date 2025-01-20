@@ -84,11 +84,18 @@
                 <img 
                   :src="detection.enhancement_status === 'completed' ? `/api/enhanced/${detection.frigate_event}/thumbnail.jpg` : `/frigate/${detection.frigate_event}/thumbnail.jpg`" 
                   alt="Bird Detection"
-                  class="h-16 w-16 object-cover rounded-lg shadow-sm cursor-pointer transform transition duration-200 group-hover:scale-105"
+                  class="h-32 w-32 object-cover rounded-lg shadow-sm cursor-zoom-in transform transition duration-200 group-hover:scale-105"
                   @click="showSnapshot(detection)"
                   @load="checkTransparentImage"
                 />
                 <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity duration-200 rounded-lg"></div>
+                <div v-if="detection.enhancement_status === 'completed'" 
+                     class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full opacity-75">
+                  Enhanced
+                </div>
+                <div class="absolute bottom-2 right-2 bg-gray-800 text-white text-xs px-2 py-1 rounded-full opacity-75">
+                  Click to Zoom
+                </div>
               </div>
             </td>
           </tr>
@@ -114,7 +121,7 @@
           <div class="bg-white">
             <div class="sm:flex sm:items-start">
               <div class="w-full">
-                <div class="flex justify-between items-center px-6 py-3 border-b border-gray-200">
+                <div class="flex justify-between items-center px-6 py-3 border-b border-gray-200 bg-gray-50">
                   <div>
                     <h3 class="text-lg font-medium text-gray-900">
                       {{ selectedDetection?.common_name }}
@@ -130,16 +137,31 @@
                     <div v-if="selectedDetection?.enhancement_status === 'completed'" class="flex items-center">
                       <button
                         @click="toggleComparisonView"
-                        class="mr-4 px-3 py-1 text-sm font-medium text-gray-700 hover:text-gray-900 focus:outline-none"
+                        class="mr-4 px-4 py-2 text-sm font-medium rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
-                        {{ isComparisonView ? 'Single View' : 'Compare' }}
+                        <span v-if="isComparisonView">
+                          <svg class="inline-block w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                          </svg>
+                          Single View
+                        </span>
+                        <span v-else>
+                          <svg class="inline-block w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                          </svg>
+                          Compare Views
+                        </span>
                       </button>
                       <button
                         v-if="!isComparisonView"
                         @click="toggleEnhanced"
-                        class="px-3 py-1 text-sm font-medium rounded-md"
-                        :class="showEnhanced ? 'bg-primary-100 text-primary-700' : 'text-gray-700 hover:text-gray-900'"
+                        class="px-4 py-2 text-sm font-medium rounded-md"
+                        :class="showEnhanced ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'"
                       >
+                        <svg class="inline-block w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path v-if="showEnhanced" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                          <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
                         {{ showEnhanced ? 'Show Original' : 'Show Enhanced' }}
                       </button>
                     </div>
