@@ -30,13 +30,15 @@ def recent_detections(num_detections):
                     iq.composition_score,
                     iq.enhancement_status,
                     iq.quality_improvement,
-                    datetime(d.detection_time, 'localtime') as local_detection_time
+                    datetime(d.detection_time, 'localtime') as local_detection_time,
+                    b.common_name as common_name,
+                    b.scientific_name as scientific_name
                 FROM detections d
                 LEFT JOIN image_quality iq ON d.id = iq.detection_id
+                LEFT JOIN birdnames b ON d.display_name = b.scientific_name
             )
             SELECT *
             FROM local_time
-            WHERE date(local_detection_time) >= date('now', 'localtime', '-1 day')
             ORDER BY local_detection_time DESC
             LIMIT :limit
         """
@@ -53,7 +55,8 @@ def recent_detections(num_detections):
                 'category_name': result[5],
                 'frigate_event': result[6],
                 'camera_name': result[7],
-                'common_name': get_common_name(result[4]),
+                'common_name': result[12] or get_common_name(result[4]),
+                'scientific_name': result[13] or result[4],
                 'quality_score': result[8] if result[8] is not None else None,
                 'composition_score': result[9] if result[9] is not None else None,
                 'enhancement_status': result[10],

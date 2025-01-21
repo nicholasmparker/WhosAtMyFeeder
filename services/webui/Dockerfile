@@ -13,7 +13,7 @@ WORKDIR /build
 
 # Install Python dependencies with build requirements
 COPY requirements/base.txt requirements/ml.txt ./
-RUN pip wheel --wheel-dir=/wheels -r base.txt -r ml.txt
+RUN pip wheel --no-deps --wheel-dir=/wheels -r base.txt -r ml.txt
 
 # Runtime stage
 FROM python:3.11-slim
@@ -26,6 +26,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libgomp1 \
     sqlite3 \
     curl \
+    docker.io \
     && rm -rf /var/lib/apt/lists/* && \
     rm -f /var/cache/apt/archives/lock /var/cache/apt/lists/lock
 
@@ -34,16 +35,21 @@ WORKDIR /app
 # Copy wheels from builder and install
 COPY --from=builder /wheels /wheels
 COPY requirements/base.txt requirements/ml.txt ./
-RUN pip install --find-links=/wheels -r base.txt -r ml.txt && \
+RUN pip install --no-deps --find-links=/wheels -r base.txt -r ml.txt && \
+    pip install -r base.txt -r ml.txt && \
     rm -rf /wheels requirements.*
 
-# Copy application code
+# Copy application code and SQL files
 COPY services/shared /app/services/shared
 COPY services/webui /app/services/webui
+COPY init_db.sql /app/
+COPY migrations /app/migrations/
+COPY populate_birdnames.py /app/
 
 # Copy and set entrypoint
 COPY services/webui/entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
+WORKDIR /app
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 CMD ["python", "services/webui/webui.py"]
