@@ -321,4 +321,31 @@ def main():
         raise
 
 if __name__ == '__main__':
+    if os.environ.get('FLASK_DEBUG') == '1':
+        import importlib
+        import sys
+        
+        def reload_handler():
+            importlib.reload(sys.modules[__name__])
+            main()
+        
+        def watch_module():
+            import time
+            last_mtime = os.path.getmtime(__file__)
+            while True:
+                try:
+                    current_mtime = os.path.getmtime(__file__)
+                    if current_mtime > last_mtime:
+                        print("Detected change, reloading...", flush=True)
+                        reload_handler()
+                        last_mtime = current_mtime
+                    time.sleep(1)
+                except Exception as e:
+                    print(f"Reload error: {e}", flush=True)
+                    time.sleep(1)
+        
+        import threading
+        watcher = threading.Thread(target=watch_module, daemon=True)
+        watcher.start()
+        
     main()

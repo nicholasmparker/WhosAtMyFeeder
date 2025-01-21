@@ -530,5 +530,6 @@ def api_batch_process_images():
         abort(500, description=str(e))
 
 if __name__ == '__main__':
-    # Only run Flask directly when this file is run directly (not when imported)
-    app.run(host='0.0.0.0', port=7766, debug=False)
+    # Enable debug mode in development
+    debug = os.environ.get('FLASK_DEBUG', '0') == '1'
+    app.run(host='0.0.0.0', port=7766, debug=debug, use_reloader=debug)

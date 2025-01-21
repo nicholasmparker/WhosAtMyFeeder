@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  app:
+    ports:
+      - "7766:7766"
+      - "5678:5678"  # Debug port
+    volumes:
+      - ./services:/app/services:delegated  # Mount all services code
+      - ./migrations:/app/migrations:delegated  # Mount migrations
+      - ./config:/app/config:ro
+      - ./data:/data
+      - ./models:/app/models:ro
+      - ./input:/app/input
+      - ./output:/app/output
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PYTHONPATH=/app/services/shared:/app/services
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    command: ["python", "-m", "debugpy", "--listen", "0.0.0.0:5678", "-m", "services.webui.webui"]
+
+  websocket:
+    ports:
+      - "8765:8765"
+      - "5679:5679"  # Debug port
+    volumes:
+      - ./services:/app/services:delegated  # Mount all services code
+      - ./data:/data
+    environment:
+      - PYTHONPATH=/app/services/shared:/app/services
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    command: ["uvicorn", "services.websocket.websocket_server:app", "--host", "0.0.0.0", "--port", "8765", "--reload"]
+
+  speciesid:
+    ports:
+      - "8766:8766"
+      - "5680:5680"  # Debug port
+    volumes:
+      - ./services:/app/services:delegated  # Mount all services code
+      - ./config:/app/config:ro
+      - ./data:/data
+      - ./models:/app/models:ro
+      - ./models/model.tflite:/app/model.tflite:ro
+    environment:
+      - PYTHONPATH=/app/services/shared:/app/services
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    command: ["python", "-m", "services.speciesid.speciesid"]
+
+  frontend:
+    volumes:
+      - ./frontend/src:/app/src:delegated
+      - ./frontend/public:/app/public:delegated
+      - frontend_node_modules:/app/node_modules
+    environment:
+      - NODE_ENV=development
+    command: npm run dev
