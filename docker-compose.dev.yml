@@ -2,6 +2,8 @@ version: '3.8'
 
 services:
   app:
+    networks:
+      - app_network
     ports:
       - "7766:7766"
       - "5678:5678"  # Debug port
@@ -21,6 +23,8 @@ services:
     command: ["python", "-m", "debugpy", "--listen", "0.0.0.0:5678", "-m", "services.webui.webui"]
 
   websocket:
+    networks:
+      - app_network
     ports:
       - "8765:8765"
       - "5679:5679"  # Debug port
@@ -34,6 +38,8 @@ services:
     command: ["uvicorn", "services.websocket.websocket_server:app", "--host", "0.0.0.0", "--port", "8765", "--reload"]
 
   speciesid:
+    networks:
+      - app_network
     ports:
       - "8766:8766"
       - "5680:5680"  # Debug port
@@ -50,6 +56,8 @@ services:
     command: ["python", "-m", "services.speciesid.speciesid"]
 
   frontend:
+    ports:
+      - "5173:5173"
     volumes:
       - ./frontend/src:/app/src:delegated
       - ./frontend/public:/app/public:delegated
@@ -57,3 +65,12 @@ services:
     environment:
       - NODE_ENV=development
     command: npm run dev
+    networks:
+      - app_network
+
+volumes:
+  frontend_node_modules:
+
+networks:
+  app_network:
+    name: app_network

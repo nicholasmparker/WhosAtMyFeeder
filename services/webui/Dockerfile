@@ -12,8 +12,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 WORKDIR /build
 
 # Install Python dependencies with build requirements
-COPY requirements/base.txt requirements/ml.txt ./
-RUN pip wheel --no-deps --wheel-dir=/wheels -r base.txt -r ml.txt
+COPY requirements/base.txt requirements/ml.txt requirements/dev.txt ./
+RUN pip wheel --no-deps --wheel-dir=/wheels -r base.txt -r ml.txt -r dev.txt
 
 # Runtime stage
 FROM python:3.11-slim
@@ -34,9 +34,9 @@ WORKDIR /app
 
 # Copy wheels from builder and install
 COPY --from=builder /wheels /wheels
-COPY requirements/base.txt requirements/ml.txt ./
-RUN pip install --no-deps --find-links=/wheels -r base.txt -r ml.txt && \
-    pip install -r base.txt -r ml.txt && \
+COPY requirements/base.txt requirements/ml.txt requirements/dev.txt ./
+RUN pip install --no-deps --find-links=/wheels -r base.txt -r ml.txt -r dev.txt && \
+    pip install -r base.txt -r ml.txt -r dev.txt && \
     rm -rf /wheels requirements.*
 
 # Copy application code and SQL files
