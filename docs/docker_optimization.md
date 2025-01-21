@@ -1,183 +1,169 @@
-# Docker Build Optimization Strategies
+# Docker Development and Production Optimization
 
-## Current Issues
-- Build times exceeding 30 minutes
-- Large image sizes
-- Inefficient caching
-- Redundant build steps
+## Current Status
+- Multi-stage builds implemented
+- Requirements split into base.txt, dev.txt, ml.txt, test.txt
+- BuildKit enabled with cache mounts
+- Basic .dockerignore configuration
 
-## Optimization Strategies
+## Development vs Production Strategy
 
-### 1. Multi-stage Builds
-#### Benefits
-- Smaller final image size
-- Separation of build and runtime dependencies
-- Cleaner image layers
+### Development Workflow
+#### Goals
+- Fast iteration cycles
+- Minimal rebuilds
+- Real-time code changes
+- Easy debugging
 
 #### Implementation
+1. Development-specific compose file (docker-compose.dev.yml):
+```yaml
+services:
+  app:
+    volumes:
+      - ./services:/app/services:delegated  # Source code
+      - ./migrations:/app/migrations:delegated  # Migrations
+      - ./config:/app/config:delegated  # Config
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    command: ["flask", "run", "--host=0.0.0.0", "--reload"]
+
+  frontend:
+    volumes:
+      - ./frontend/src:/app/src:delegated
+      - ./frontend/public:/app/public:delegated
+      - frontend_node_modules:/app/node_modules
+    command: npm run dev
+```
+
+2. Development Commands:
+```bash
+# Start development environment
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+# When changing dependencies only
+docker-compose build
+
+# When changing Dockerfile
+docker-compose build --no-cache
+```
+
+3. Development Features:
+- Hot reload for both frontend and backend
+- Source code mounted as volumes
+- Real-time code changes without rebuilds
+- Shared node_modules volume for frontend
+
+### Production Workflow
+#### Goals
+- Optimized image sizes
+- Secure builds
+- Reliable deployments
+- Consistent environments
+
+#### Implementation
+1. Production Dockerfile optimizations:
 ```dockerfile
-# Build stage
+# syntax=docker/dockerfile:1.4
 FROM python:3.11-slim as builder
-# Build dependencies and compile packages here
+
+# Build dependencies with cache mounts
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update && apt-get install -y \
+    build-essential \
+    python3.11-dev
+
+WORKDIR /build
+
+# Install Python dependencies with build requirements
+COPY requirements/base.txt requirements/ml.txt ./
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip wheel --no-deps --wheel-dir=/wheels -r base.txt -r ml.txt
 
 # Runtime stage
 FROM python:3.11-slim
-# Copy only necessary artifacts from builder
-```
 
-### 2. Layer Optimization
-#### Benefits
-- Better use of Docker cache
-- Faster incremental builds
-- Reduced rebuild frequency
+# Install runtime system dependencies
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update && apt-get install -y \
+    required-packages && \
+    rm -rf /var/lib/apt/lists/*
 
-#### Implementation
-- Order layers from least to most frequently changing
-- Split requirements into base and dev dependencies
-- Use .dockerignore effectively
+WORKDIR /app
 
-```dockerfile
-# Least changing
-COPY requirements-base.txt .
-RUN pip install -r requirements-base.txt
+# Copy wheels and install
+COPY --from=builder /wheels /wheels
+COPY requirements/base.txt requirements/ml.txt ./
+RUN pip install --no-deps --find-links=/wheels -r base.txt -r ml.txt && \
+    rm -rf /wheels requirements.*
 
-# More frequently changing
-COPY requirements-dev.txt .
-RUN pip install -r requirements-dev.txt
-
-# Most frequently changing
+# Copy application code
 COPY . .
+
+CMD ["python", "app.py"]
 ```
 
-### 3. BuildKit Features
-#### Benefits
-- Parallel dependency downloads
-- Better caching mechanisms
-- More efficient builds
-
-#### Implementation
+2. Production Commands:
 ```bash
-# Enable BuildKit
-export DOCKER_BUILDKIT=1
+# Build production images
+docker-compose -f docker-compose.prod.yml build
 
-# Use BuildKit syntax in Dockerfile
-# syntax=docker/dockerfile:1.4
+# Deploy production stack
+docker-compose -f docker-compose.prod.yml up -d
 ```
 
-#### Cache Mounts
-```dockerfile
-# Cache pip
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r requirements.txt
+3. Production Features:
+- Multi-stage builds for smaller images
+- Pre-compiled dependencies
+- Proper security measures
+- No development tools included
 
-# Cache apt
-RUN --mount=type=cache,target=/var/cache/apt \
-    apt-get update && apt-get install -y ...
-```
+## Future Optimizations
 
-### 4. Development Workflow
-#### Benefits
-- Faster development cycles
-- Reduced rebuild frequency
-- Better developer experience
+### Phase 1: Development Experience
+1. Implement Docker Compose Watch mode
+2. Add development-specific health checks
+3. Create development debugging tools
+4. Improve hot reload performance
 
-#### Implementation
-1. Use volume mounts for development:
-```yaml
-# docker-compose.yml
-volumes:
-  - ./src:/app/src:delegated
-  - ./config:/app/config:delegated
-```
+### Phase 2: Build Optimization
+1. Implement parallel builds
+2. Optimize layer caching
+3. Reduce image sizes further
+4. Implement distroless base images
 
-2. Implement hot reload:
-```yaml
-# docker-compose.yml
-services:
-  app:
-    develop:
-      watch:
-        - action: sync
-          path: ./src
-          target: /app/src
-```
+### Phase 3: CI/CD Integration
+1. Setup build caching in CI
+2. Implement automated testing
+3. Configure security scanning
+4. Automate deployment process
 
-### 5. Dependency Management
-#### Benefits
-- Faster dependency installation
-- Better cache utilization
-- Reduced build times
+## Best Practices
 
-#### Implementation
-1. Split requirements:
-```
-requirements/
-  ├── base.txt      # Core dependencies
-  ├── dev.txt       # Development tools
-  ├── ml.txt        # Machine learning packages
-  └── test.txt      # Testing packages
-```
+### Development
+1. Always use volume mounts for source code
+2. Enable hot reload when possible
+3. Use development-specific environment variables
+4. Keep node_modules in a named volume
 
-2. Use pre-built wheels:
-```dockerfile
-# Install wheels first
-COPY requirements/wheels/ /tmp/wheels
-RUN pip install /tmp/wheels/*.whl
+### Production
+1. Use multi-stage builds
+2. Implement proper security measures
+3. Optimize image sizes
+4. Use specific version tags
 
-# Then install remaining packages
-COPY requirements/base.txt .
-RUN pip install -r base.txt
-```
-
-## Implementation Plan
-
-### Phase 1: Preparation
-1. Create feature branch `docker-optimization`
-2. Split requirements files
-3. Create comprehensive .dockerignore
-4. Document current build times for comparison
-
-### Phase 2: Basic Optimizations
-1. Implement multi-stage builds
-2. Optimize layer ordering
-3. Enable BuildKit
-4. Add cache mounts
-
-### Phase 3: Development Workflow
-1. Configure volume mounts
-2. Set up hot reload
-3. Create development-specific compose file
-4. Document development workflow
-
-### Phase 4: Advanced Optimizations
-1. Implement dependency caching
-2. Configure parallel builds
-3. Optimize base images
-4. Fine-tune cache settings
-
-### Phase 5: Testing and Documentation
-1. Measure build time improvements
-2. Document all changes
-3. Create developer guide
-4. Update CI/CD pipelines
-
-## Expected Improvements
-- Build times reduced by 50-70%
-- Image sizes reduced by 30-50%
-- Faster development cycles
-- Better cache utilization
+### General
+1. Keep .dockerignore updated
+2. Use BuildKit features
+3. Implement proper logging
+4. Regular cleanup of unused images and volumes
 
 ## Monitoring and Maintenance
-- Regular review of build times
-- Periodic cleanup of cached layers
+- Monitor build times
+- Regular security updates
+- Cleanup unused resources
 - Update dependencies strategically
-- Monitor disk space usage
-
-## Additional Considerations
-- Consider using docker buildx for multi-platform builds
-- Evaluate using distroless base images
-- Implement security scanning
-- Set up automated cleanup of old images and cache
 
 ## Resources
 - [Docker BuildKit documentation](https://docs.docker.com/develop/develop-images/build_enhancements/)
