@@ -31,7 +31,7 @@
         <!-- Image -->
         <div class="relative w-full" style="padding-top: 75%;">
           <img 
-            :src="detection.enhancement_status === 'completed' ? `/api/enhanced/${detection.frigate_event}/snapshot.jpg` : `/frigate/${detection.frigate_event}/snapshot.jpg`"
+            :src="detection.enhancement_status === 'completed' ? `/api/enhanced/${detection.frigate_event}/thumbnail.jpg` : `/frigate/${detection.frigate_event}/thumbnail.jpg`"
             :alt="detection.common_name"
             class="absolute top-0 left-0 w-full h-full object-cover"
           />

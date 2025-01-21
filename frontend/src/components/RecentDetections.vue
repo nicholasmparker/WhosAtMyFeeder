@@ -281,16 +281,15 @@ const showSnapshot = (detection: Detection) => {
   if (!detection) return
   
   selectedDetection.value = detection
+  showEnhanced.value = detection.enhancement_status === 'completed'
+  isComparisonView.value = false
+  
   currentSnapshotUrl.value = getSnapshotUrl(
     detection.frigate_event, 
-    detection.enhancement_status === 'completed' && showEnhanced.value
+    showEnhanced.value
   )
   currentClipUrl.value = `/frigate/${detection.frigate_event}/clip.mp4`
   isModalOpen.value = true
-  
-  // Reset view state
-  showEnhanced.value = false
-  isComparisonView.value = false
 }
 
 
