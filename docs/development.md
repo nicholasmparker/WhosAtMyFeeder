@@ -5,7 +5,16 @@
 ### Quick Start
 ```bash
 # Start development environment with hot reloading
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+./run_dev.sh
+
+# Clean database and volumes before starting
+./run_dev.sh --clean
+
+# Rebuild containers before starting
+./run_dev.sh --rebuild
+
+# Show help
+./run_dev.sh --help
 ```
 
 ### Features
@@ -42,7 +51,12 @@ docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 1. Start the development environment:
 ```bash
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+# Basic start
+./run_dev.sh
+
+# With options
+./run_dev.sh --clean    # Clean database and volumes
+./run_dev.sh --rebuild  # Rebuild containers
 ```
 
 2. Make changes to the code:
