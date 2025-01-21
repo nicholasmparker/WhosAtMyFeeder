@@ -23,15 +23,21 @@ def get_common_name(scientific_name):
 def recent_detections(num_detections):
     def do_query(session):
         query = """
-            SELECT 
-                d.*,
-                iq.clarity_score,
-                iq.composition_score,
-                iq.enhancement_status,
-                iq.quality_improvement
-            FROM detections d
-            LEFT JOIN image_quality iq ON d.id = iq.detection_id
-            ORDER BY d.detection_time DESC
+            WITH local_time AS (
+                SELECT 
+                    d.*,
+                    iq.clarity_score,
+                    iq.composition_score,
+                    iq.enhancement_status,
+                    iq.quality_improvement,
+                    datetime(d.detection_time, 'localtime') as local_detection_time
+                FROM detections d
+                LEFT JOIN image_quality iq ON d.id = iq.detection_id
+            )
+            SELECT *
+            FROM local_time
+            WHERE date(local_detection_time) >= date('now', 'localtime', '-1 day')
+            ORDER BY local_detection_time DESC
             LIMIT :limit
         """
         results = session.execute(text(query), {"limit": num_detections}).fetchall()
