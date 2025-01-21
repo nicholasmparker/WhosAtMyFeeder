@@ -26,8 +26,9 @@ services:
       - ./config:/app/config:ro
       - ./data:/data
       - ./models:/app/models:ro
-      - ./input:/app/input:ro
+      - ./input:/app/input
       - ./output:/app/output
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - PYTHONPATH=/app/services/shared:/app/services
     command: ["python", "services/webui/webui.py"]

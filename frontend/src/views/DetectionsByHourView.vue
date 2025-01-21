@@ -58,12 +58,17 @@
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="relative group">
                   <img 
-                    :src="getThumbnailUrl(detection.frigate_event)"
+                    :src="detection.enhancement_status === 'completed' ? `/api/enhanced/${detection.frigate_event}/thumbnail.jpg` : `/frigate/${detection.frigate_event}/thumbnail.jpg`"
                     alt="Detection thumbnail"
                     class="h-16 w-16 object-cover rounded-lg shadow-sm cursor-pointer transform transition duration-200 group-hover:scale-105"
-                    @click="showSnapshot(detection)"
+                    @click.prevent="showSnapshot(detection)"
+                    @error="handleImageError"
                   />
                   <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity duration-200 rounded-lg"></div>
+                  <div v-if="detection.enhancement_status === 'completed'" 
+                       class="absolute top-0 right-0 bg-green-500 text-white text-xs px-1 py-0.5 rounded-bl opacity-75">
+                    Enhanced
+                  </div>
                 </div>
               </td>
             </tr>
@@ -81,7 +86,7 @@
     <!-- Modal for displaying snapshot -->
     <div 
       v-if="isModalOpen"
-      class="fixed inset-0 z-50 overflow-y-auto"
+      class="fixed inset-0 z-[100] overflow-y-auto"
       @click.self="closeModal"
     >
       <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
@@ -90,33 +95,57 @@
         </div>
 
         <div 
-          class="inline-block bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:my-8 sm:max-w-4xl w-full"
+          class="inline-block bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:my-8 sm:max-w-4xl w-full relative z-[110]"
           @click.stop
         >
           <div class="bg-white">
             <div class="sm:flex sm:items-start">
               <div class="w-full">
                 <div class="flex justify-between items-center px-6 py-3 border-b border-gray-200">
-                  <h3 class="text-lg font-medium text-gray-900">
-                    Detection Snapshot
-                  </h3>
-                  <button 
-                    @click="closeModal"
-                    class="text-gray-400 hover:text-gray-500 focus:outline-none"
-                  >
-                    <span class="sr-only">Close</span>
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+                  <div>
+                    <h3 class="text-lg font-medium text-gray-900">
+                      {{ selectedDetection?.common_name }}
+                    </h3>
+                    <div v-if="selectedDetection?.enhancement_status === 'completed'" class="mt-1 text-sm text-gray-500">
+                      <span class="text-green-600">Enhanced Image</span>
+                    </div>
+                  </div>
+                  <div class="flex items-center space-x-4">
+                    <div v-if="selectedDetection?.enhancement_status === 'completed'" class="flex items-center">
+                      <button
+                        @click="toggleEnhanced"
+                        class="px-4 py-2 text-sm font-medium rounded-md"
+                        :class="showEnhanced ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'"
+                      >
+                        <svg class="inline-block w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path v-if="showEnhanced" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                          <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        {{ showEnhanced ? 'Show Original' : 'Show Enhanced' }}
+                      </button>
+                    </div>
+                    <button 
+                      @click="closeModal"
+                      class="text-gray-400 hover:text-gray-500 focus:outline-none"
+                    >
+                      <span class="sr-only">Close</span>
+                      <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 <div class="px-6 py-4">
                   <img 
                     :src="currentSnapshotUrl" 
                     alt="Detection Snapshot" 
                     class="w-full h-auto rounded-lg shadow-lg"
+                    @error="handleImageError"
                   />
-                  <div class="mt-4 flex justify-end">
+                  <div class="mt-4 flex justify-between items-center">
+                    <div class="text-sm text-gray-500">
+                      Detected at {{ formatTime(selectedDetection?.detection_time || '') }}
+                    </div>
                     <a 
                       :href="currentClipUrl" 
                       target="_blank"
@@ -151,6 +180,7 @@ interface Detection {
   common_name: string
   score: number
   frigate_event: string
+  enhancement_status?: 'pending' | 'completed' | 'failed'
 }
 
 const route = useRoute()
@@ -159,6 +189,8 @@ const detections = ref<Detection[]>([])
 const currentSnapshotUrl = ref('')
 const currentClipUrl = ref('')
 const isModalOpen = ref(false)
+const selectedDetection = ref<Detection | null>(null)
+const showEnhanced = ref(false)
 
 const currentDate = ref<string>('')
 const currentHour = ref<string>('')
@@ -224,18 +256,44 @@ const formatTime = (dateTime: string) => {
   })
 }
 
-const getThumbnailUrl = (frigateEvent: string) => {
-  return `/frigate/${frigateEvent}/thumbnail.jpg`
+const getImageUrl = (detection: Detection, isSnapshot = false) => {
+  const type = isSnapshot ? 'snapshot' : 'thumbnail'
+  return detection.enhancement_status === 'completed'
+    ? `/api/enhanced/${detection.frigate_event}/${type}.jpg`
+    : `/frigate/${detection.frigate_event}/${type}.jpg`
+}
+
+const handleImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement
+  console.error('Image failed to load:', img.src)
+  // Fall back to original image if enhanced fails
+  if (img.src.includes('/api/enhanced/')) {
+    img.src = img.src.replace('/api/enhanced/', '/frigate/')
+  }
 }
 
 const showSnapshot = (detection: Detection) => {
-  currentSnapshotUrl.value = `/frigate/${detection.frigate_event}/snapshot.jpg`
+  selectedDetection.value = detection
+  showEnhanced.value = detection.enhancement_status === 'completed'
+  currentSnapshotUrl.value = getImageUrl(detection, true)
   currentClipUrl.value = `/frigate/${detection.frigate_event}/clip.mp4`
   isModalOpen.value = true
 }
 
+const toggleEnhanced = () => {
+  showEnhanced.value = !showEnhanced.value
+  if (selectedDetection.value) {
+    currentSnapshotUrl.value = getImageUrl(
+      selectedDetection.value,
+      true
+    )
+  }
+}
+
 const closeModal = () => {
   isModalOpen.value = false
+  selectedDetection.value = null
+  showEnhanced.value = false
   currentSnapshotUrl.value = ''
   currentClipUrl.value = ''
 }

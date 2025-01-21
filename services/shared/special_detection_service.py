@@ -195,21 +195,29 @@ class SpecialDetectionService:
         def do_query(session):
             rows = session.execute(
                 text("""
-                    SELECT 
-                        sd.*,
-                        d.detection_time,
-                        d.display_name,
-                        d.score as detection_score,
-                        d.frigate_event,
-                        b.common_name,
-                        iq.clarity_score,
-                        iq.composition_score,
-                        iq.behavior_tags
-                    FROM special_detections sd
-                    JOIN detections d ON sd.detection_id = d.id
-                    JOIN birdnames b ON d.display_name = b.scientific_name
-                    LEFT JOIN image_quality iq ON d.id = iq.detection_id
-                    ORDER BY sd.created_at DESC
+                    WITH local_time AS (
+                        SELECT 
+                            sd.*,
+                            d.detection_time,
+                            d.display_name,
+                            d.score as detection_score,
+                            d.frigate_event,
+                            b.common_name,
+                            iq.clarity_score,
+                            iq.composition_score,
+                            iq.behavior_tags,
+                            iq.enhancement_status,
+                            iq.quality_improvement,
+                            datetime(sd.created_at, 'localtime') as local_created_at
+                        FROM special_detections sd
+                        JOIN detections d ON sd.detection_id = d.id
+                        JOIN birdnames b ON d.display_name = b.scientific_name
+                        LEFT JOIN image_quality iq ON d.id = iq.detection_id
+                    )
+                    SELECT *
+                    FROM local_time
+                    WHERE date(local_created_at) >= date('now', 'localtime', '-7 days')
+                    ORDER BY local_created_at DESC
                     LIMIT :limit
                 """),
                 {"limit": limit}
@@ -219,7 +227,8 @@ class SpecialDetectionService:
             columns = ['id', 'detection_id', 'highlight_type', 'score', 'community_votes', 
                       'featured_status', 'created_at', 'detection_time', 'display_name', 
                       'detection_score', 'frigate_event', 'common_name', 'clarity_score',
-                      'composition_score', 'behavior_tags']
+                      'composition_score', 'behavior_tags', 'enhancement_status', 'quality_improvement',
+                      'local_created_at']
             return [dict(zip(columns, row)) for row in rows]
         
         return db.execute_read(do_query)

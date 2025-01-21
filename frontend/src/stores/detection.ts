@@ -27,7 +27,8 @@ interface DetectionState {
   dailySummary: DailySummary
   loading: boolean
   error: string | null
-  hasData: boolean
+  hasRecentDetections: boolean
+  hasDailySummary: boolean
 }
 
 export const useDetectionStore = defineStore('detection', {
@@ -36,7 +37,8 @@ export const useDetectionStore = defineStore('detection', {
     dailySummary: {},
     loading: false,
     error: null,
-    hasData: false
+    hasRecentDetections: false,
+    hasDailySummary: false
   }),
 
   actions: {
@@ -44,8 +46,13 @@ export const useDetectionStore = defineStore('detection', {
       this.loading = true
       try {
         const response = await api.get('/api/detections/recent')
-        this.recentDetections = response.data
-        this.hasData = response.data.length > 0
+        if (response.data === null || response.data === undefined) {
+          this.recentDetections = []
+          this.hasRecentDetections = false
+        } else {
+          this.recentDetections = response.data
+          this.hasRecentDetections = Array.isArray(response.data) && response.data.length > 0
+        }
         this.error = null
       } catch (error: any) {
         // Only set error if it's not a "no table" error
@@ -53,7 +60,7 @@ export const useDetectionStore = defineStore('detection', {
           this.error = 'Failed to fetch recent detections'
           console.error('Error fetching recent detections:', error)
         }
-        this.hasData = false
+        this.hasRecentDetections = false
       } finally {
         this.loading = false
       }
@@ -64,7 +71,7 @@ export const useDetectionStore = defineStore('detection', {
       try {
         const response = await api.get(`/api/detections/daily-summary/${date}`)
         this.dailySummary = response.data
-        this.hasData = Object.keys(response.data).length > 0
+        this.hasDailySummary = Object.keys(response.data || {}).length > 0
         this.error = null
       } catch (error: any) {
         // Only set error if it's not a "no table" error
@@ -72,7 +79,7 @@ export const useDetectionStore = defineStore('detection', {
           this.error = 'Failed to fetch daily summary'
           console.error('Error fetching daily summary:', error)
         }
-        this.hasData = false
+        this.hasDailySummary = false
       } finally {
         this.loading = false
       }
@@ -84,6 +91,6 @@ export const useDetectionStore = defineStore('detection', {
     getDailySummary: (state): DailySummary => state.dailySummary,
     isLoading: (state): boolean => state.loading,
     getError: (state): string | null => state.error,
-    getHasData: (state): boolean => state.hasData
+    hasData: (state): boolean => state.hasRecentDetections || state.hasDailySummary
   }
 })

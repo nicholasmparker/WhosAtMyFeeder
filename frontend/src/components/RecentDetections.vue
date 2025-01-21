@@ -85,8 +85,8 @@
                   :src="detection.enhancement_status === 'completed' ? `/api/enhanced/${detection.frigate_event}/thumbnail.jpg` : `/frigate/${detection.frigate_event}/thumbnail.jpg`" 
                   alt="Bird Detection"
                   class="h-32 w-32 object-cover rounded-lg shadow-sm cursor-zoom-in transform transition duration-200 group-hover:scale-105"
-                  @click="showSnapshot(detection)"
-                  @load="checkTransparentImage"
+                  @click.prevent="showSnapshot(detection)"
+                  @error="handleImageError"
                 />
                 <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity duration-200 rounded-lg"></div>
                 <div v-if="detection.enhancement_status === 'completed'" 
@@ -106,7 +106,7 @@
     <!-- Modal for displaying snapshot -->
     <div 
       v-if="isModalOpen"
-      class="fixed inset-0 z-50 overflow-y-auto"
+      class="fixed inset-0 z-[100] overflow-y-auto"
       @click.self="closeModal"
     >
       <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
@@ -115,7 +115,7 @@
         </div>
 
         <div 
-          class="inline-block bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:my-8 sm:max-w-4xl w-full"
+          class="inline-block bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:my-8 sm:max-w-4xl w-full relative z-[110]"
           @click.stop
         >
           <div class="bg-white">
@@ -315,10 +315,12 @@ const closeModal = () => {
   isComparisonView.value = false
 }
 
-const checkTransparentImage = (event: Event) => {
+const handleImageError = (event: Event) => {
   const img = event.target as HTMLImageElement
-  if (img.naturalWidth === 0 || img.naturalHeight === 0) {
-    console.error('Image failed to load:', img.src)
+  console.error('Image failed to load:', img.src)
+  // Fall back to original image if enhanced fails
+  if (img.src.includes('/api/enhanced/')) {
+    img.src = img.src.replace('/api/enhanced/', '/frigate/')
   }
 }
 </script>

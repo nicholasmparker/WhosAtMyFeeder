@@ -1,6 +1,7 @@
 import os
 import cv2
 import numpy as np
+import requests
 # Optional TensorFlow import
 try:
     import tensorflow as tf
@@ -217,23 +218,47 @@ class ImageProcessingService:
         else:
             raise ValueError(f"Unsupported enhancer type: {enhancer_config['type']}")
     
-    def _get_enhanced_path(self, original_path: str) -> str:
+    def _get_enhanced_path(self, original_path: str, is_thumbnail: bool = False) -> str:
         """Generate path for enhanced image."""
-        base_name = os.path.basename(original_path)
-        name, ext = os.path.splitext(base_name)
-        return os.path.join(
+        # Extract event ID from path - handle both URL and local paths
+        if 'http' in original_path:
+            # URL path like http://frigate/api/events/event123/snapshot.jpg
+            event_id = original_path.split('/events/')[-1].split('/')[0]
+        else:
+            # Local path
+            event_id = original_path.split('/')[-2]
+            
+        logger.info(f"Extracted event ID: {event_id} from path: {original_path}")
+        
+        # Create event directory
+        event_dir = os.path.join(
             self.config['storage']['enhanced_images_path'],
-            f"{name}_enhanced{ext}"
+            event_id
         )
+        os.makedirs(event_dir, exist_ok=True)
+        
+        # Return appropriate path
+        if is_thumbnail:
+            return os.path.join(event_dir, 'thumbnail_enhanced.jpg')
+        return os.path.join(event_dir, 'snapshot_enhanced.jpg')
     
     def process_image(self, image_path: str) -> Dict:
         """Process an image through the quality assessment and enhancement pipeline."""
         logger.info(f"Processing image: {image_path}")
         
-        # Read image
-        image = cv2.imread(image_path)
-        if image is None:
-            raise ValueError(f"Could not read image: {image_path}")
+        # Read image from URL
+        try:
+            response = requests.get(image_path, stream=True)
+            response.raise_for_status()
+            
+            # Convert response content to numpy array
+            nparr = np.frombuffer(response.content, np.uint8)
+            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            
+            if image is None:
+                raise ValueError(f"Could not decode image from: {image_path}")
+        except Exception as e:
+            raise ValueError(f"Could not read image from {image_path}: {str(e)}")
         
         # Assess quality
         quality_scores = self.quality_model.assess_quality(image)
@@ -250,8 +275,15 @@ class ImageProcessingService:
         if quality_scores['clarity'] < self.config['local_models']['quality_assessment']['threshold']:
             logger.info("Image quality below threshold, enhancing...")
             enhanced_image = self.enhancer.enhance(image)
+            # Save enhanced snapshot
             enhanced_path = self._get_enhanced_path(image_path)
             cv2.imwrite(enhanced_path, enhanced_image)
+            
+            # Create and save enhanced thumbnail
+            thumbnail_size = (320, 240)
+            enhanced_thumbnail = cv2.resize(enhanced_image, thumbnail_size)
+            thumbnail_path = self._get_enhanced_path(image_path, is_thumbnail=True)
+            cv2.imwrite(thumbnail_path, enhanced_thumbnail)
             
             # Assess enhanced image quality
             enhanced_scores = self.quality_model.assess_quality(enhanced_image)
@@ -298,6 +330,29 @@ def update_image_quality_table(db_path: str, detection_id: int, quality_data: Di
     cursor = conn.cursor()
     
     try:
+        # Get the frigate_event for this detection
+        cursor.execute("""
+            SELECT frigate_event
+            FROM detections
+            WHERE id = ?
+        """, (detection_id,))
+        result = cursor.fetchone()
+        if not result:
+            logger.error(f"No detection found for ID {detection_id}")
+            return
+            
+        frigate_event = result[0]
+        enhanced_path = os.path.join(
+            quality_data.get('enhanced_path', '').split('data/')[-1]
+            if quality_data.get('enhanced_path')
+            else ''
+        )
+        enhanced_thumbnail_path = os.path.join(
+            'data/enhanced_images',
+            frigate_event,
+            'thumbnail_enhanced.jpg'
+        )
+        
         cursor.execute("""
             INSERT OR REPLACE INTO image_quality (
                 detection_id,
@@ -305,14 +360,23 @@ def update_image_quality_table(db_path: str, detection_id: int, quality_data: Di
                 composition_score,
                 behavior_tags,
                 visibility_score,
+                enhanced_path,
+                enhanced_thumbnail_path,
+                enhancement_status,
+                quality_improvement,
                 created_at
-            ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         """, (
             detection_id,
             quality_data['quality_scores']['clarity'],
             quality_data['quality_scores']['composition'],
             json.dumps([]),  # Empty behavior tags for now
-            quality_data['quality_scores']['overall']
+            quality_data['quality_scores']['overall'],
+            enhanced_path if quality_data.get('enhanced') else None,
+            enhanced_thumbnail_path if quality_data.get('enhanced') else None,
+            'completed' if quality_data.get('enhanced') else None,
+            (quality_data.get('enhanced_quality_scores', {}).get('overall', 0) - 
+             quality_data['quality_scores']['overall']) if quality_data.get('enhanced') else None
         ))
         
         conn.commit()
