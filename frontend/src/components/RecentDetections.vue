@@ -256,10 +256,18 @@ const showEnhanced = ref(false)
 const isComparisonView = ref(false)
 
 const formatDateTime = (dateTime: string) => {
-  const date = new Date(dateTime)
+  // Parse the UTC date string and create a Date object
+  const date = new Date(dateTime + 'Z') // Append Z to ensure UTC parsing
+  
+  // Format using browser's timezone
   return new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-    timeStyle: 'short'
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: true,
+    timeZoneName: 'short'
   }).format(date)
 }
 
@@ -270,6 +278,8 @@ const getSnapshotUrl = (frigateEvent: string, enhanced = false) => {
 }
 
 const showSnapshot = (detection: Detection) => {
+  if (!detection) return
+  
   selectedDetection.value = detection
   currentSnapshotUrl.value = getSnapshotUrl(
     detection.frigate_event, 
@@ -277,7 +287,12 @@ const showSnapshot = (detection: Detection) => {
   )
   currentClipUrl.value = `/frigate/${detection.frigate_event}/clip.mp4`
   isModalOpen.value = true
+  
+  // Reset view state
+  showEnhanced.value = false
+  isComparisonView.value = false
 }
+
 
 const toggleEnhanced = () => {
   showEnhanced.value = !showEnhanced.value
@@ -303,6 +318,8 @@ const closeModal = () => {
 
 const checkTransparentImage = (event: Event) => {
   const img = event.target as HTMLImageElement
-  // Add logic here if needed to handle transparent images
+  if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+    console.error('Image failed to load:', img.src)
+  }
 }
 </script>

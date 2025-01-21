@@ -31,7 +31,7 @@
         <!-- Image -->
         <div class="relative w-full" style="padding-top: 75%;">
           <img 
-            :src="`/frigate/${detection.frigate_event}/snapshot.jpg`"
+            :src="detection.enhancement_status === 'completed' ? `/api/enhanced/${detection.frigate_event}/snapshot.jpg` : `/frigate/${detection.frigate_event}/snapshot.jpg`"
             :alt="detection.common_name"
             class="absolute top-0 left-0 w-full h-full object-cover"
           />
@@ -201,7 +201,10 @@ export default defineComponent({
     }
 
     const viewFullImage = (detection: any) => {
-      window.open(`/frigate/${detection.frigate_event}/snapshot.jpg`, '_blank')
+      const imageUrl = detection.enhancement_status === 'completed' 
+        ? `/api/enhanced/${detection.frigate_event}/snapshot.jpg` 
+        : `/frigate/${detection.frigate_event}/snapshot.jpg`
+      window.open(imageUrl, '_blank')
     }
 
     onMounted(fetchDetections)
