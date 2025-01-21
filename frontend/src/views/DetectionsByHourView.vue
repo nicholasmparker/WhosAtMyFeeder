@@ -189,7 +189,11 @@ const getCurrentHour = (): string => {
   if (routeHour) {
     return routeHour
   }
-  return new Date().getHours().toString()
+  
+  // Get current hour in local timezone
+  const now = new Date()
+  const localHour = now.getHours()
+  return localHour.toString().padStart(2, '0')
 }
 
 const date = computed(() => currentDate.value)
@@ -209,12 +213,14 @@ const formattedDateTime = computed(() => {
 })
 
 const formatTime = (dateTime: string) => {
-  const date = new Date(dateTime)
+  // Parse UTC date string and create a Date object
+  const date = new Date(dateTime + 'Z')
   return date.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: true
+    hour12: true,
+    timeZoneName: 'short'
   })
 }
 

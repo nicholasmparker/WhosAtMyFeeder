@@ -192,8 +192,23 @@ import axios from 'axios'
 
 const router = useRouter()
 const webSocketStore = useWebSocketStore()
-const currentDate = ref(new Date().toISOString().split('T')[0])
+// Get current date in local timezone
+const getCurrentDate = () => {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0]
+}
+
+const currentDate = ref(getCurrentDate())
 const earliestDate = ref(currentDate.value)
+
+// Update current date every minute
+const dateUpdateInterval = setInterval(() => {
+  currentDate.value = getCurrentDate()
+}, 60000)
+
+onBeforeUnmount(() => {
+  clearInterval(dateUpdateInterval)
+})
 const isOpen = ref(false)
 
 const navigateToDailySummary = (event: Event) => {
