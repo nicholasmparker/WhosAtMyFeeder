@@ -215,7 +215,12 @@ class SpecialDetectionService:
                 {"limit": limit}
             ).fetchall()
             
-            return [dict(zip(row.keys(), row)) for row in rows]
+            # Convert SQLAlchemy Row objects to dictionaries
+            columns = ['id', 'detection_id', 'highlight_type', 'score', 'community_votes', 
+                      'featured_status', 'created_at', 'detection_time', 'display_name', 
+                      'detection_score', 'frigate_event', 'common_name', 'clarity_score',
+                      'composition_score', 'behavior_tags']
+            return [dict(zip(columns, row)) for row in rows]
         
         return db.execute_read(do_query)
 
