@@ -1,3 +1,5 @@
+NOTE: this fork is NOT ready for use.  I have it public while im in development.
+
 # Who's At My Feeder?
 ## What's New?
 I'm just about to push a significant update. This will require you to...
