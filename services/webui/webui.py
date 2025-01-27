@@ -32,7 +32,7 @@ class SQLiteJSONEncoder(json.JSONEncoder):
 app.json_encoder = SQLiteJSONEncoder
 
 # Health check endpoint
-@app.route('/health')
+@app.route('/api/health')
 def health_check():
     return jsonify({"status": "healthy"})
 

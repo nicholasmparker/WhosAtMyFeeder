@@ -46,7 +46,9 @@ export default defineConfig({
     exclude: [],
     esbuildOptions: {
       target: 'esnext'
-    }
+    },
+    force: true, // Force dependency pre-bundling
+    disabled: process.env.NODE_ENV === 'development' // Disable caching in development
   },
   build: {
     target: 'esnext',
@@ -54,5 +56,6 @@ export default defineConfig({
       include: [/node_modules/],
       extensions: ['.js', '.cjs', '.mjs'],
     }
-  }
+  },
+  cacheDir: '.vite' // Store cache in project directory instead of node_modules
 })
