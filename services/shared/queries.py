@@ -23,23 +23,24 @@ def get_common_name(scientific_name):
 def recent_detections(num_detections):
     def do_query(session):
         query = """
-            WITH local_time AS (
-                SELECT 
-                    d.*,
-                    iq.clarity_score,
-                    iq.composition_score,
-                    iq.enhancement_status,
-                    iq.quality_improvement,
-                    datetime(d.detection_time, 'localtime') as local_detection_time,
-                    b.common_name as common_name,
-                    b.scientific_name as scientific_name
-                FROM detections d
-                LEFT JOIN image_quality iq ON d.id = iq.detection_id
-                LEFT JOIN birdnames b ON d.display_name = b.scientific_name
-            )
-            SELECT *
-            FROM local_time
-            ORDER BY local_detection_time DESC
+            SELECT 
+                d.id,
+                datetime(d.detection_time, 'localtime') as detection_time,
+                d.display_name,
+                d.score,
+                d.frigate_event,
+                d.category_name,
+                d.camera_name,
+                d.detection_index,
+                iq.clarity_score,
+                iq.composition_score,
+                iq.enhancement_status,
+                iq.quality_improvement,
+                b.common_name
+            FROM detections d
+            LEFT JOIN image_quality iq ON d.id = iq.detection_id
+            LEFT JOIN birdnames b ON d.display_name = b.scientific_name
+            ORDER BY d.detection_time DESC
             LIMIT :limit
         """
         results = session.execute(text(query), {"limit": num_detections}).fetchall()
@@ -49,18 +50,18 @@ def recent_detections(num_detections):
             detection = {
                 'id': result[0],
                 'detection_time': result[1],
-                'detection_index': result[2],
+                'display_name': result[2],
                 'score': result[3],
-                'display_name': result[4],
+                'frigate_event': result[4],
                 'category_name': result[5],
-                'frigate_event': result[6],
-                'camera_name': result[7],
-                'common_name': result[12] or get_common_name(result[4]),
-                'scientific_name': result[13] or result[4],
+                'camera_name': result[6],
+                'detection_index': result[7],
                 'quality_score': result[8] if result[8] is not None else None,
                 'composition_score': result[9] if result[9] is not None else None,
                 'enhancement_status': result[10],
-                'quality_improvement': result[11] if result[11] is not None else None
+                'quality_improvement': result[11] if result[11] is not None else None,
+                'common_name': result[12] or get_common_name(result[2]),
+                'scientific_name': result[2]  # display_name is the scientific name
             }
             formatted_results.append(detection)
         
