@@ -7,7 +7,9 @@ CREATE TABLE IF NOT EXISTS image_quality (
     enhanced_path TEXT,
     enhanced_thumbnail_path TEXT,
     enhancement_status TEXT CHECK(enhancement_status IN ('pending', 'completed', 'failed')),
-    quality_improvement REAL
+    quality_improvement REAL,
+    visibility_score REAL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create temporary table with all columns
@@ -19,7 +21,9 @@ CREATE TEMP TABLE image_quality_backup (
     enhanced_path TEXT,
     enhanced_thumbnail_path TEXT,
     enhancement_status TEXT CHECK(enhancement_status IN ('pending', 'completed', 'failed')),
-    quality_improvement REAL
+    quality_improvement REAL,
+    visibility_score REAL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Copy data
@@ -47,7 +51,9 @@ CREATE TABLE image_quality (
     enhanced_path TEXT,
     enhanced_thumbnail_path TEXT,
     enhancement_status TEXT CHECK(enhancement_status IN ('pending', 'completed', 'failed')),
-    quality_improvement REAL
+    quality_improvement REAL,
+    visibility_score REAL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Restore data

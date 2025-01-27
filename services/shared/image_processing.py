@@ -61,10 +61,14 @@ class BasicQualityModel(QualityAssessmentModel):
         max_possible_score = 40 * 40 * 4
         composition_score = min(thirds_score / max_possible_score, 1.0)
         
+        # Calculate overall score as weighted average
+        overall_score = (clarity_score * 0.6 + composition_score * 0.4)
+        
+        # Ensure all scores are between 0 and 1
         return {
-            'clarity': clarity_score,
-            'composition': composition_score,
-            'overall': (clarity_score * 0.6 + composition_score * 0.4)
+            'clarity': max(0.0, min(1.0, clarity_score)),
+            'composition': max(0.0, min(1.0, composition_score)),
+            'overall': max(0.0, min(1.0, overall_score))
         }
 
 if TENSORFLOW_AVAILABLE:
