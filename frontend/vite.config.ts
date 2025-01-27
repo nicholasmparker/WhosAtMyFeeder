@@ -5,7 +5,11 @@ import path from 'path'
 export default defineConfig({
   plugins: [vue()],
   server: {
-    host: true,
+    host: '0.0.0.0',
+    port: 5173,
+    watch: {
+      usePolling: true
+    },
     proxy: {
       '/api': {
         target: 'http://app:7766',
@@ -18,13 +22,37 @@ export default defineConfig({
       '/ws': {
         target: 'ws://websocket:8765',
         ws: true,
-        rewriteWsOrigin: true,
+        changeOrigin: true
       }
     }
   },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-    },
+    }
+  },
+  optimizeDeps: {
+    include: [
+      'vue',
+      'vue-router',
+      'pinia',
+      '@heroicons/vue',
+      '@headlessui/vue',
+      'axios',
+      'date-fns',
+      'echarts',
+      'vue-echarts'
+    ],
+    exclude: [],
+    esbuildOptions: {
+      target: 'esnext'
+    }
+  },
+  build: {
+    target: 'esnext',
+    commonjsOptions: {
+      include: [/node_modules/],
+      extensions: ['.js', '.cjs', '.mjs'],
+    }
   }
 })

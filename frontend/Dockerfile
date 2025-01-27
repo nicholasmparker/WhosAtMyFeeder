@@ -1,5 +1,7 @@
 FROM node:18-slim
 
+WORKDIR /app
+
 # Install necessary packages for node-gyp
 RUN apt-get update && apt-get install -y \
     python3 \
@@ -7,16 +9,14 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-
 # Copy package files
 COPY package*.json ./
 
 # Install dependencies
 RUN npm install
 
-# Copy the rest of the application
-COPY . .
+# Clean Vite's cache directory if it exists
+RUN rm -rf /app/node_modules/.vite
 
 # Set permissions for node user
 RUN chown -R node:node /app
@@ -29,4 +29,5 @@ EXPOSE 5173
 ENV HOST=0.0.0.0
 ENV PORT=5173
 
-CMD ["npm", "run", "dev"]
+# Start with a clean optimization cache
+CMD rm -rf /app/node_modules/.vite && npm run dev
