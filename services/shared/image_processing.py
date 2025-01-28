@@ -456,16 +456,21 @@ def update_image_quality_table(db_path: str, detection_id: int, quality_data: Di
             return
             
         frigate_event = result[0]
-        enhanced_path = os.path.join(
-            quality_data.get('enhanced_path', '').split('data/')[-1]
-            if quality_data.get('enhanced_path')
-            else ''
-        )
-        enhanced_thumbnail_path = os.path.join(
-            'data/enhanced_images',
-            frigate_event,
-            'thumbnail_enhanced.jpg'
-        )
+        
+        # Use the actual paths from quality_data
+        enhanced_path = f"/data/images/enhanced/{frigate_event}/snapshot.jpg" if quality_data.get('enhanced') else None
+        enhanced_thumbnail_path = f"/data/images/enhanced/{frigate_event}/thumbnail.jpg" if quality_data.get('enhanced') else None
+        
+        # Get quality scores
+        clarity = float(quality_data['quality_scores']['clarity'])
+        composition = float(quality_data['quality_scores']['composition'])
+        overall = float(quality_data['quality_scores']['overall'])
+        
+        # Calculate quality improvement if enhanced
+        quality_improvement = None
+        if quality_data.get('enhanced') and quality_data.get('enhanced_quality_scores'):
+            enhanced_overall = float(quality_data['enhanced_quality_scores']['overall'])
+            quality_improvement = enhanced_overall - overall
         
         cursor.execute("""
             INSERT OR REPLACE INTO image_quality (
@@ -482,15 +487,14 @@ def update_image_quality_table(db_path: str, detection_id: int, quality_data: Di
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         """, (
             detection_id,
-            quality_data['quality_scores']['clarity'],
-            quality_data['quality_scores']['composition'],
+            clarity,
+            composition,
             json.dumps([]),  # Empty behavior tags for now
-            quality_data['quality_scores']['overall'],  # Used as the main quality score in UI and queries
-            enhanced_path if quality_data.get('enhanced') else None,
-            enhanced_thumbnail_path if quality_data.get('enhanced') else None,
+            overall,  # Used as the main quality score in UI and queries
+            enhanced_path,
+            enhanced_thumbnail_path,
             'completed' if quality_data.get('enhanced') else None,
-            (quality_data.get('enhanced_quality_scores', {}).get('overall', 0) - 
-             quality_data['quality_scores']['overall']) if quality_data.get('enhanced') else None
+            quality_improvement
         ))
         
         conn.commit()

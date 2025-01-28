@@ -4,6 +4,7 @@ from sqlalchemy import text
 from .database import db
 
 def get_common_name(scientific_name):
+    """Get common name for a scientific name, with fallback for unknown birds."""
     def do_query(session):
         result = session.execute(
             text("SELECT common_name FROM birdnames WHERE scientific_name = :name"),
@@ -19,60 +20,68 @@ def get_common_name(scientific_name):
     
     return db.execute_read(do_query)
 
+def _base_detection_query():
+    """Base query for getting detection data with quality metrics."""
+    return """
+        SELECT 
+            d.id,
+            datetime(d.detection_time, 'localtime') as detection_time,
+            d.display_name,
+            d.score,
+            d.frigate_event,
+            d.category_name,
+            d.camera_name,
+            d.detection_index,
+            b.common_name,
+            COALESCE(iq.visibility_score, 0) as visibility_score,
+            COALESCE(iq.clarity_score, 0) as clarity_score,
+            COALESCE(iq.composition_score, 0) as composition_score,
+            iq.enhancement_status,
+            COALESCE(iq.quality_improvement, 0) as quality_improvement,
+            iq.enhanced_path,
+            iq.enhanced_thumbnail_path
+        FROM detections d
+        LEFT JOIN image_quality iq ON d.id = iq.detection_id
+        LEFT JOIN birdnames b ON d.display_name = b.scientific_name
+    """
+
+def _format_detection(record):
+    """Format a detection record into a consistent dictionary structure."""
+    return {
+        'id': record[0],
+        'detection_time': record[1],
+        'display_name': record[2],
+        'score': record[3],
+        'frigate_event': record[4],
+        'category_name': record[5],
+        'camera_name': record[6],
+        'detection_index': record[7],
+        'common_name': record[8] or f"Unknown Bird ({record[2]})",
+        'visibility_score': record[9],
+        'clarity_score': record[10],
+        'composition_score': record[11],
+        'enhancement_status': record[12],
+        'quality_improvement': record[13],
+        'enhanced_path': record[14],
+        'enhanced_thumbnail_path': record[15],
+        'scientific_name': record[2]  # display_name is the scientific name
+    }
 
 def recent_detections(num_detections):
+    """Get most recent detections with quality metrics."""
     def do_query(session):
-        query = """
-            SELECT 
-                d.id,
-                datetime(d.detection_time, 'localtime') as detection_time,
-                d.display_name,
-                d.score,
-                d.frigate_event,
-                d.category_name,
-                d.camera_name,
-                d.detection_index,
-                iq.visibility_score as quality_score,
-                iq.clarity_score,
-                iq.composition_score,
-                iq.enhancement_status,
-                iq.quality_improvement,
-                b.common_name
-            FROM detections d
-            LEFT JOIN image_quality iq ON d.id = iq.detection_id
-            LEFT JOIN birdnames b ON d.display_name = b.scientific_name
+        query = f"""
+            {_base_detection_query()}
             ORDER BY d.detection_time DESC
             LIMIT :limit
         """
         results = session.execute(text(query), {"limit": num_detections}).fetchall()
-        
-        formatted_results = []
-        for result in results:
-            detection = {
-                'id': result[0],
-                'detection_time': result[1],
-                'display_name': result[2],
-                'score': result[3],
-                'frigate_event': result[4],
-                'category_name': result[5],
-                'camera_name': result[6],
-                'detection_index': result[7],
-                'quality_score': result[8] if result[8] is not None else None,
-                'clarity_score': result[9] if result[9] is not None else None,
-                'composition_score': result[10] if result[10] is not None else None,
-                'enhancement_status': result[11],
-                'quality_improvement': result[12] if result[12] is not None else None,
-                'common_name': result[12] or get_common_name(result[2]),
-                'scientific_name': result[2]  # display_name is the scientific name
-            }
-            formatted_results.append(detection)
-        
-        return formatted_results
+        return [_format_detection(result) for result in results]
     
     return db.execute_read(do_query)
 
-
 def get_daily_summary(date):
+    """Get detection summary for a specific date."""
     def do_query(session):
         date_str = date.strftime('%Y-%m-%d')
         print(f"\nGetting daily summary for date: {date_str}", flush=True)
@@ -84,18 +93,18 @@ def get_daily_summary(date):
         ).scalar()
         print(f"Found {count} detections for date {date_str}", flush=True)
         
-        query = '''  
-            SELECT display_name,  
-                   COUNT(*) AS total_detections,  
-                   STRFTIME('%H', detection_time) AS hour,  
-                   COUNT(*) AS hourly_detections  
-            FROM (  
-                SELECT *  
-                FROM detections  
-                WHERE DATE(detection_time) = :date  
-            ) AS subquery  
-            GROUP BY display_name, hour  
-            ORDER BY total_detections DESC, display_name, hour  
+        # More efficient query without subquery
+        query = '''
+            SELECT 
+                d.display_name,
+                b.common_name,
+                STRFTIME('%H', d.detection_time) AS hour,
+                COUNT(*) AS hourly_detections
+            FROM detections d
+            LEFT JOIN birdnames b ON d.display_name = b.scientific_name
+            WHERE DATE(d.detection_time) = :date
+            GROUP BY d.display_name, hour
+            ORDER BY hourly_detections DESC, d.display_name, hour
         '''
         
         rows = session.execute(text(query), {"date": date_str}).fetchall()
@@ -109,11 +118,11 @@ def get_daily_summary(date):
         })
         
         for row in rows:
-            display_name = row[0]  # Using index since we're not using sqlite.Row
+            display_name = row[0]
             summary[display_name]['scientific_name'] = display_name
-            summary[display_name]['common_name'] = get_common_name(display_name)
-            summary[display_name]['total_detections'] += row[3]  # hourly_detections
-            summary[display_name]['hourly_detections'][int(row[2])] = row[3]  # hour and hourly_detections
+            summary[display_name]['common_name'] = row[1] or f"Unknown Bird ({display_name})"
+            summary[display_name]['total_detections'] += row[3]
+            summary[display_name]['hourly_detections'][int(row[2])] = row[3]
         
         result = dict(summary)
         print(f"Returning summary with {len(result)} species", flush=True)
@@ -121,80 +130,46 @@ def get_daily_summary(date):
     
     return db.execute_read(do_query)
 
-
 def get_records_for_date_hour(date, hour):
+    """Get detailed detection records for a specific date and hour."""
     def do_query(session):
-        query = '''    
-            SELECT *    
-            FROM detections    
-            WHERE strftime('%Y-%m-%d', detection_time) = :date 
-            AND strftime('%H', detection_time) = :hour    
-            ORDER BY detection_time    
-        '''
+        query = f"""
+            {_base_detection_query()}
+            WHERE strftime('%Y-%m-%d', d.detection_time) = :date 
+            AND strftime('%H', d.detection_time) = :hour    
+            ORDER BY d.detection_time    
+        """
         
         records = session.execute(
             text(query),
             {"date": date, "hour": str(hour).zfill(2)}
         ).fetchall()
         
-        # Convert records to dictionaries and add common names
-        result = []
-        for record in records:
-            record_dict = {
-                'id': record[0],
-                'detection_time': record[1],
-                'detection_index': record[2],
-                'score': record[3],
-                'display_name': record[4],
-                'category_name': record[5],
-                'frigate_event': record[6],
-                'camera_name': record[7],
-                'common_name': get_common_name(record[4])
-            }
-            result.append(record_dict)
-        
-        return result
+        return [_format_detection(record) for record in records]
     
     return db.execute_read(do_query)
 
-
 def get_records_for_scientific_name_and_date(scientific_name, date):
+    """Get detailed detection records for a specific species and date."""
     def do_query(session):
-        query = '''    
-            SELECT *    
-            FROM detections    
-            WHERE display_name = :name 
-            AND strftime('%Y-%m-%d', detection_time) = :date    
-            ORDER BY detection_time    
-        '''
+        query = f"""
+            {_base_detection_query()}
+            WHERE d.display_name = :name 
+            AND strftime('%Y-%m-%d', d.detection_time) = :date    
+            ORDER BY d.detection_time    
+        """
         
         records = session.execute(
             text(query),
             {"name": scientific_name, "date": date}
         ).fetchall()
         
-        # Convert records to dictionaries and add common names
-        result = []
-        for record in records:
-            record_dict = {
-                'id': record[0],
-                'detection_time': record[1],
-                'detection_index': record[2],
-                'score': record[3],
-                'display_name': record[4],
-                'category_name': record[5],
-                'frigate_event': record[6],
-                'camera_name': record[7],
-                'common_name': get_common_name(record[4])
-            }
-            result.append(record_dict)
-        
-        return result
+        return [_format_detection(record) for record in records]
     
     return db.execute_read(do_query)
 
-
 def get_earliest_detection_date():
+    """Get the earliest date in the detections table."""
     def do_query(session):
         latest_date = session.execute(
             text("SELECT MAX(date(detection_time)) FROM detections")

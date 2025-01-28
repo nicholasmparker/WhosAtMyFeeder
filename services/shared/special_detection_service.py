@@ -141,12 +141,20 @@ class SpecialDetectionService:
         """Evaluate a detection and create a special detection entry if it qualifies."""
         def do_create(session):
             # Get detection details including rarity and quality scores
-            detection = session.execute(
+            result = session.execute(
                 text("""
                     SELECT 
-                        d.*,
-                        r.frequency_score,
-                        r.seasonal_score,
+                        d.id,
+                        d.detection_time,
+                        d.display_name,
+                        CAST(d.score as FLOAT) as score,
+                        d.frigate_event,
+                        d.category_name,
+                        d.camera_name,
+                        d.detection_index,
+                        d.created_at,
+                        CAST(r.frequency_score as FLOAT) as frequency_score,
+                        CAST(r.seasonal_score as FLOAT) as seasonal_score,
                         iq.clarity_score,
                         iq.composition_score,
                         iq.visibility_score
@@ -158,20 +166,28 @@ class SpecialDetectionService:
                 {"id": detection_id}
             ).fetchone()
             
-            if not detection:
+            if not result:
                 print(f"No detection found for ID {detection_id}")
                 return None
 
+            # Convert row to dictionary for named column access
+            detection = dict(zip([
+                'id', 'detection_time', 'display_name', 'score', 'frigate_event',
+                'category_name', 'camera_name', 'detection_index', 'created_at',
+                'frequency_score', 'seasonal_score', 'clarity_score',
+                'composition_score', 'visibility_score'
+            ], result))
+
             # Add image quality if not present
-            if not detection[7]:  # clarity_score index
+            if not detection['clarity_score']:
                 self.evaluate_image_quality(detection_id, {})
 
             # Determine highlight type based on frequency score
-            frequency_score = detection[5] or 0  # frequency_score index
+            frequency_score = detection['frequency_score'] or 0
             highlight_type = 'rare' if frequency_score > 0.6 else 'quality'
 
             # Use raw frequency score for rare birds, detection score for quality birds
-            final_score = frequency_score if highlight_type == 'rare' else detection[3]  # score index
+            final_score = float(frequency_score if highlight_type == 'rare' else detection['score'])
 
             # Only create special detection if score is significant
             if final_score > 0.7:  # Threshold for special detection

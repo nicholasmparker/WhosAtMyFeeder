@@ -27,6 +27,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     sqlite3 \
     curl \
     docker.io \
+    libusb-1.0-0 \
     && rm -rf /var/lib/apt/lists/* && \
     rm -f /var/cache/apt/archives/lock /var/cache/apt/lists/lock
 
@@ -43,9 +44,9 @@ RUN pip install --no-deps --find-links=/wheels -r base.txt -r ml.txt -r dev.txt 
 COPY services/shared /app/services/shared
 COPY services/webui /app/services/webui
 COPY init_db.sql /app/
-COPY migrations /app/migrations/
 COPY services/speciesid/populate_birdnames.py /app/
 COPY reprocess_quality.py /app/
+COPY import_frigate_detections.py /app/
 
 # Copy and set entrypoint
 COPY services/webui/entrypoint.sh /usr/local/bin/
