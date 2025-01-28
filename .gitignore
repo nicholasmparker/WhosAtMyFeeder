@@ -68,3 +68,4 @@ config/config.yml  # Ignore local config
 # Aider
 .aider*
 resources/
+config/config.yml
