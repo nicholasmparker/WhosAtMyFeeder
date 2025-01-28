@@ -54,41 +54,38 @@
               </div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
-              <div v-if="detection.quality_score !== undefined" class="flex items-center">
+              <div class="flex items-center">
                 <div 
                   class="h-2 w-16 bg-gray-200 rounded-full overflow-hidden"
                   role="progressbar"
-                  :aria-valuenow="detection.quality_score * 100"
+                  :aria-valuenow="detection.visibility_score * 100"
                   aria-valuemin="0"
                   aria-valuemax="100"
                 >
                   <div 
                     class="h-full"
                     :class="{
-                      'bg-green-600': detection.quality_score >= 0.7,
-                      'bg-yellow-500': detection.quality_score >= 0.4 && detection.quality_score < 0.7,
-                      'bg-red-500': detection.quality_score < 0.4
+                      'bg-green-600': detection.visibility_score >= 0.7,
+                      'bg-yellow-500': detection.visibility_score >= 0.4 && detection.visibility_score < 0.7,
+                      'bg-red-500': detection.visibility_score < 0.4
                     }"
-                    :style="{ width: `${detection.quality_score * 100}%` }"
+                    :style="{ width: `${detection.visibility_score * 100}%` }"
                   ></div>
                 </div>
-                <span class="ml-2 text-sm text-gray-700">{{ (detection.quality_score * 100).toFixed(0) }}%</span>
+                <span class="ml-2 text-sm text-gray-700">{{ (detection.visibility_score * 100).toFixed(0) }}%</span>
                 <span v-if="detection.enhancement_status === 'completed'" 
                       class="ml-2 text-xs text-green-600">
                   Enhanced
                 </span>
-              </div>
-              <div v-else class="text-sm text-gray-500">
-                Analyzing...
               </div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
               <div class="flex items-center space-x-4">
                 <div class="relative group">
                   <img 
-                    :src="detection.enhancement_status === 'completed' ? `/api/enhanced/${detection.frigate_event}/thumbnail.jpg` : `/frigate/${detection.frigate_event}/thumbnail.jpg`" 
+                    :src="detection.enhanced_path || `/frigate/${detection.frigate_event}/snapshot.jpg`" 
                     alt="Bird Detection"
-                  class="h-32 w-32 object-cover rounded-lg shadow-sm transform transition duration-200 group-hover:scale-105"
+                    class="h-32 w-32 object-cover rounded-lg shadow-sm transform transition duration-200 group-hover:scale-105"
                     @error="handleImageError"
                   />
                   <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity duration-200 rounded-lg"></div>
@@ -97,7 +94,7 @@
                     Enhanced
                   </div>
                 </div>
-                <!-- Test button -->
+                <!-- View button -->
                 <button 
                   @click="openModal(detection)"
                   class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
@@ -124,18 +121,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import ImageModal from './ImageModal.vue'
-
-interface Detection {
-  id: number
-  detection_time: string
-  common_name: string
-  scientific_name: string
-  score: number
-  frigate_event: string
-  quality_score?: number
-  enhancement_status?: 'pending' | 'completed' | 'failed'
-  quality_improvement?: number
-}
+import type { Detection } from '@/types/detection'
 
 // Props
 defineProps<{
