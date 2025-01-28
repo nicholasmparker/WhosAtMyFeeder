@@ -378,27 +378,13 @@ def api_image_quality(detection_id):
 def enhanced_snapshot(frigate_event):
     """Serve enhanced snapshot image."""
     try:
-        # Check database first for the path
-        conn = sqlite3.connect(DBPATH)
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT enhanced_path
-            FROM image_quality
-            JOIN detections ON image_quality.detection_id = detections.id
-            WHERE detections.frigate_event = ? AND enhancement_status = 'completed'
-        """, (frigate_event,))
-        result = cursor.fetchone()
-        conn.close()
+        # Check if enhanced image exists
+        enhanced_path = f"/data/images/enhanced/{frigate_event}/snapshot.jpg"
+        if os.path.exists(enhanced_path):
+            print(f"Found enhanced snapshot at {enhanced_path}, serving...", flush=True)
+            return send_file(enhanced_path, mimetype='image/jpeg')
 
-        if result and result[0]:
-            # Remove 'data/' prefix if present since we're mounted at /data
-            enhanced_path = result[0].replace('data/', '', 1)
-            print(f"Looking for enhanced snapshot at: {enhanced_path}", flush=True)
-            if os.path.exists(enhanced_path):
-                print(f"Found enhanced snapshot, serving...", flush=True)
-                return send_file(enhanced_path, mimetype='image/jpeg')
-
-        print(f"Enhanced snapshot not found, falling back to original", flush=True)
+        print(f"Enhanced snapshot not found at {enhanced_path}, falling back to original", flush=True)
         return frigate_snapshot(frigate_event)
     except Exception as e:
         print(f"Error serving enhanced snapshot: {e}", flush=True)
@@ -408,27 +394,13 @@ def enhanced_snapshot(frigate_event):
 def enhanced_thumbnail(frigate_event):
     """Serve enhanced thumbnail image."""
     try:
-        # Check database first for the path
-        conn = sqlite3.connect(DBPATH)
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT enhanced_thumbnail_path
-            FROM image_quality
-            JOIN detections ON image_quality.detection_id = detections.id
-            WHERE detections.frigate_event = ? AND enhancement_status = 'completed'
-        """, (frigate_event,))
-        result = cursor.fetchone()
-        conn.close()
+        # Check if enhanced thumbnail exists
+        enhanced_path = f"/data/images/enhanced/{frigate_event}/thumbnail.jpg"
+        if os.path.exists(enhanced_path):
+            print(f"Found enhanced thumbnail at {enhanced_path}, serving...", flush=True)
+            return send_file(enhanced_path, mimetype='image/jpeg')
 
-        if result and result[0]:
-            # Remove 'data/' prefix if present since we're mounted at /data
-            enhanced_path = result[0].replace('data/', '', 1)
-            print(f"Looking for enhanced thumbnail at: {enhanced_path}", flush=True)
-            if os.path.exists(enhanced_path):
-                print(f"Found enhanced thumbnail, serving...", flush=True)
-                return send_file(enhanced_path, mimetype='image/jpeg')
-
-        print(f"Enhanced thumbnail not found, falling back to original", flush=True)
+        print(f"Enhanced thumbnail not found at {enhanced_path}, falling back to original", flush=True)
         return frigate_thumbnail(frigate_event)
     except Exception as e:
         print(f"Error serving enhanced thumbnail: {e}", flush=True)

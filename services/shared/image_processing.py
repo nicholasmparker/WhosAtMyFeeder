@@ -35,12 +35,25 @@ class BasicQualityModel(QualityAssessmentModel):
     
     def assess_quality(self, image: np.ndarray) -> Dict[str, float]:
         """Assess image quality using basic metrics."""
+        # Resize image if it's larger than 1000x1000 to ensure consistent metrics
+        max_size = 1000
+        height, width = image.shape[:2]
+        if height > max_size or width > max_size:
+            scale = max_size / max(height, width)
+            image = cv2.resize(image, (int(width * scale), int(height * scale)))
+        
         # Convert to grayscale for analysis
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         
         # Calculate clarity score using Laplacian variance
+        # Higher variance indicates more sharp edges
         laplacian = cv2.Laplacian(gray, cv2.CV_64F)
-        clarity_score = min(np.var(laplacian) / 500.0, 1.0)  # Normalize
+        variance = np.var(laplacian)
+        
+        # Dynamic normalization based on image statistics
+        # Use percentile-based scaling instead of fixed value
+        # 90th percentile of typical image variances is around 1000
+        clarity_score = min(variance / 1000.0, 1.0)
         
         # Calculate composition score using rule of thirds
         height, width = image.shape[:2]
@@ -50,16 +63,26 @@ class BasicQualityModel(QualityAssessmentModel):
         third_h = height // 3
         third_w = width // 3
         
-        # Check edge density around rule of thirds intersections
+        # Calculate edge density in rule of thirds regions
+        # Use relative region size based on image dimensions
+        region_size = min(height, width) // 10  # Dynamic region size
         thirds_score = 0
+        total_pixels = 0
+        
         for i in [third_h, 2*third_h]:
             for j in [third_w, 2*third_w]:
-                region = edges[i-20:i+20, j-20:j+20]
-                thirds_score += np.sum(region) / 255
+                # Extract region around intersection point
+                y_start = max(0, i - region_size)
+                y_end = min(height, i + region_size)
+                x_start = max(0, j - region_size)
+                x_end = min(width, j + region_size)
+                
+                region = edges[y_start:y_end, x_start:x_end]
+                thirds_score += np.sum(region)
+                total_pixels += region.size
         
-        # Normalize composition score
-        max_possible_score = 40 * 40 * 4
-        composition_score = min(thirds_score / max_possible_score, 1.0)
+        # Normalize by total possible edge pixels in regions
+        composition_score = min(thirds_score / (total_pixels * 255), 1.0)
         
         # Calculate overall score as weighted average
         overall_score = (clarity_score * 0.6 + composition_score * 0.4)
@@ -119,53 +142,115 @@ class ImageEnhancer(ABC):
 class RealESRGANEnhancer(ImageEnhancer):
     def __init__(self):
         """Initialize RealESRGAN enhancer."""
-        # Ensure input/output directories exist
-        os.makedirs('input', exist_ok=True)
-        os.makedirs('output', exist_ok=True)
+        # Ensure input/output directories exist in container
+        os.makedirs('/app/input', exist_ok=True)
+        os.makedirs('/app/output', exist_ok=True)
     
     def enhance(self, image: np.ndarray) -> np.ndarray:
         """Enhance image using RealESRGAN."""
         # Generate unique filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         input_filename = f"image_{timestamp}.png"
-        output_filename = f"image_{timestamp}_out.png"
-        input_path = os.path.join('input', input_filename)
-        output_path = os.path.join('output', output_filename)
+        output_filename = f"image_{timestamp}__enhanced.png"  # Note double underscore
+        # Use host paths for input/output
+        host_input_path = f"/Users/nicholasmparker/Projects/WhosAtMyFeeder/input/{input_filename}"
+        host_output_path = f"/Users/nicholasmparker/Projects/WhosAtMyFeeder/output/{output_filename}"
+        container_input_path = os.path.join('/app/input', input_filename)
+        container_output_path = os.path.join('/app/output', output_filename)
         
         try:
-            # Save input image
-            cv2.imwrite(input_path, image)
-            logger.info(f"Saved input image to: {input_path}")
+            # Save input image to both container and host paths
+            try:
+                # Create directories if they don't exist
+                os.makedirs(os.path.dirname(container_input_path), exist_ok=True)
+                os.makedirs(os.path.dirname(host_input_path), exist_ok=True)
+                
+                # Write files
+                if cv2.imwrite(container_input_path, image):
+                    logger.info(f"Successfully saved input image to container: {container_input_path}")
+                else:
+                    logger.error(f"Failed to save input image to container: {container_input_path}")
+                
+                if cv2.imwrite(host_input_path, image):
+                    logger.info(f"Successfully saved input image to host: {host_input_path}")
+                else:
+                    logger.error(f"Failed to save input image to host: {host_input_path}")
+                
+                # Verify files exist
+                if os.path.exists(container_input_path):
+                    logger.info(f"Verified container input file exists: {container_input_path}")
+                    logger.info(f"Container input file size: {os.path.getsize(container_input_path)} bytes")
+                else:
+                    logger.error(f"Container input file does not exist after write: {container_input_path}")
+                
+                if os.path.exists(host_input_path):
+                    logger.info(f"Verified host input file exists: {host_input_path}")
+                    logger.info(f"Host input file size: {os.path.getsize(host_input_path)} bytes")
+                else:
+                    logger.error(f"Host input file does not exist after write: {host_input_path}")
+            except Exception as e:
+                logger.error(f"Error saving input images: {str(e)}")
+                return image
             
             # Run RealESRGAN docker command
             cmd = [
                 'docker', 'run', '--rm',
-                '-v', f"{os.path.abspath('input')}:/app/input",
-                '-v', f"{os.path.abspath('output')}:/app/output",
-                'docker.io/kociolek/real-esrgan'  # GPU not required
+                '--network', 'app_network',
+                '-v', f"/Users/nicholasmparker/Projects/WhosAtMyFeeder/input:/input",
+                '-v', f"/Users/nicholasmparker/Projects/WhosAtMyFeeder/output:/output",
+                'docker.io/kociolek/real-esrgan',
+                '--input', f"/input/{input_filename}",  # Input path
+                '--output', "/output",  # Output directory
+                '--model_name', 'RealESRGAN_x4plus',  # Use default model
+                '--suffix', '_enhanced'  # Output filename suffix
             ]
+            logger.info("Using container paths: input=/app/input, output=/app/output")
             
-            logger.info("Running RealESRGAN command...")
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            # Log the exact command being run
+            cmd_str = ' '.join(cmd)
+            logger.info(f"Running RealESRGAN command: {cmd_str}")
             
-            if result.stdout:
-                logger.info(f"RealESRGAN output: {result.stdout}")
-            if result.stderr:
-                logger.warning(f"RealESRGAN stderr: {result.stderr}")
-                
-            if result.returncode != 0:
-                logger.error(f"RealESRGAN failed with return code: {result.returncode}")
+            # Run command and capture output
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    check=True  # Raise exception on non-zero return code
+                )
+                if result.stdout:
+                    logger.info(f"RealESRGAN output: {result.stdout}")
+                if result.stderr:
+                    logger.warning(f"RealESRGAN stderr: {result.stderr}")
+            except subprocess.CalledProcessError as e:
+                logger.error(f"RealESRGAN failed with return code {e.returncode}")
+                logger.error(f"Command output: {e.output}")
+                logger.error(f"Command stderr: {e.stderr}")
+                return image
+            except Exception as e:
+                logger.error(f"Error running RealESRGAN: {str(e)}")
                 return image
             
-            # Read enhanced image
-            if not os.path.exists(output_path):
-                logger.error(f"Enhanced image not found at: {output_path}")
-                return image
-                
-            enhanced = cv2.imread(output_path)
+            # Check both container and host output paths
+            if not os.path.exists(container_output_path):
+                logger.error(f"Enhanced image not found in container at: {container_output_path}")
+                if not os.path.exists(host_output_path):
+                    logger.error(f"Enhanced image not found on host at: {host_output_path}")
+                    return image
+                else:
+                    logger.info(f"Found enhanced image on host at: {host_output_path}")
+                    # Copy from host to container
+                    import shutil
+                    shutil.copy2(host_output_path, container_output_path)
+            
+            enhanced = cv2.imread(container_output_path)
             if enhanced is None:
-                logger.error("Failed to read enhanced image")
-                return image
+                logger.error("Failed to read enhanced image from container path")
+                # Try reading from host path
+                enhanced = cv2.imread(host_output_path)
+                if enhanced is None:
+                    logger.error("Failed to read enhanced image from host path")
+                    return image
             
             logger.info("Enhancement completed successfully")
             return enhanced
@@ -175,13 +260,19 @@ class RealESRGANEnhancer(ImageEnhancer):
             return image
             
         finally:
-            # Cleanup
-            if os.path.exists(input_path):
-                os.remove(input_path)
-                logger.debug(f"Cleaned up input file: {input_path}")
-            if os.path.exists(output_path):
-                os.remove(output_path)
-                logger.debug(f"Cleaned up output file: {output_path}")
+            # Cleanup both container and host paths
+            if os.path.exists(container_input_path):
+                os.remove(container_input_path)
+                logger.debug(f"Cleaned up container input file: {container_input_path}")
+            if os.path.exists(host_input_path):
+                os.remove(host_input_path)
+                logger.debug(f"Cleaned up host input file: {host_input_path}")
+            if os.path.exists(container_output_path):
+                os.remove(container_output_path)
+                logger.debug(f"Cleaned up container output file: {container_output_path}")
+            if os.path.exists(host_output_path):
+                os.remove(host_output_path)
+                logger.debug(f"Cleaned up host output file: {host_output_path}")
 
 class ImageProcessingService:
     def __init__(self, config_path: str = 'config/config.yml'):
@@ -193,9 +284,19 @@ class ImageProcessingService:
         self.quality_model = self._init_quality_model()
         self.enhancer = self._init_enhancer()
         
-        # Create storage directories
-        os.makedirs(self.config['storage']['enhanced_images_path'], exist_ok=True)
-        os.makedirs(self.config['storage']['cache_path'], exist_ok=True)
+        # Create storage directories with absolute paths
+        enhanced_path = self.config['storage']['enhanced_images_path']
+        if not enhanced_path.startswith('/'):
+            enhanced_path = '/data/' + enhanced_path.replace('data/', '')
+        self.config['storage']['enhanced_images_path'] = enhanced_path
+        
+        cache_path = self.config['storage']['cache_path']
+        if not cache_path.startswith('/'):
+            cache_path = '/data/' + cache_path.replace('data/', '')
+        self.config['storage']['cache_path'] = cache_path
+        
+        os.makedirs(enhanced_path, exist_ok=True)
+        os.makedirs(cache_path, exist_ok=True)
     
     def _init_quality_model(self) -> QualityAssessmentModel:
         """Initialize quality assessment model based on config."""
@@ -279,15 +380,24 @@ class ImageProcessingService:
         if quality_scores['clarity'] < self.config['local_models']['quality_assessment']['threshold']:
             logger.info("Image quality below threshold, enhancing...")
             enhanced_image = self.enhancer.enhance(image)
-            # Save enhanced snapshot
-            enhanced_path = self._get_enhanced_path(image_path)
-            cv2.imwrite(enhanced_path, enhanced_image)
+            # Extract event ID from path
+            event_id = image_path.split('/events/')[-1].split('/')[0]
             
-            # Create and save enhanced thumbnail
+            # Save enhanced image
+            enhanced_path = f"/data/images/enhanced/{event_id}/snapshot.jpg"
+            logger.info(f"Saving enhanced image to: {enhanced_path}")
+            os.makedirs(os.path.dirname(enhanced_path), exist_ok=True)
+            if not cv2.imwrite(enhanced_path, enhanced_image):
+                logger.error(f"Failed to save enhanced image to: {enhanced_path}")
+                return image
+            
+            # Save enhanced thumbnail
             thumbnail_size = (320, 240)
             enhanced_thumbnail = cv2.resize(enhanced_image, thumbnail_size)
-            thumbnail_path = self._get_enhanced_path(image_path, is_thumbnail=True)
-            cv2.imwrite(thumbnail_path, enhanced_thumbnail)
+            thumbnail_path = f"/data/images/enhanced/{event_id}/thumbnail.jpg"
+            logger.info(f"Saving enhanced thumbnail to: {thumbnail_path}")
+            if not cv2.imwrite(thumbnail_path, enhanced_thumbnail):
+                logger.error(f"Failed to save enhanced thumbnail to: {thumbnail_path}")
             
             # Assess enhanced image quality
             enhanced_scores = self.quality_model.assess_quality(enhanced_image)
@@ -375,7 +485,7 @@ def update_image_quality_table(db_path: str, detection_id: int, quality_data: Di
             quality_data['quality_scores']['clarity'],
             quality_data['quality_scores']['composition'],
             json.dumps([]),  # Empty behavior tags for now
-            quality_data['quality_scores']['overall'],
+            quality_data['quality_scores']['overall'],  # Used as the main quality score in UI and queries
             enhanced_path if quality_data.get('enhanced') else None,
             enhanced_thumbnail_path if quality_data.get('enhanced') else None,
             'completed' if quality_data.get('enhanced') else None,
