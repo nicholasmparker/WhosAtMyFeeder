@@ -3,12 +3,26 @@ import vue from '@vitejs/plugin-vue'
 import path from 'path'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue({
+      template: {
+        compilerOptions: {
+          isCustomElement: (tag) => tag === 'teleport'
+        }
+      }
+    })
+  ],
   server: {
     host: '0.0.0.0',
     port: 5173,
     watch: {
       usePolling: true
+    },
+    hmr: {
+      protocol: 'ws',
+      host: 'localhost',
+      port: 5173,
+      clientPort: 5173
     },
     proxy: {
       '/api': {

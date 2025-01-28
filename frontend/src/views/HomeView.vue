@@ -46,7 +46,7 @@
           </div>
         </div>
         <RecentDetections 
-          v-else
+          v-if="!detectionStore.loading && detectionStore.recentDetections.length > 0"
           :recent-detections="detectionStore.recentDetections" 
           class="divide-y divide-gray-200"
         />
@@ -88,10 +88,16 @@ const detectionStore = useDetectionStore()
 const currentHour = ref(new Date().getHours())
 
 onMounted(async () => {
+  console.log('HomeView mounted')
   const today = new Date().toISOString().split('T')[0]
-  await Promise.all([
-    detectionStore.fetchRecentDetections(),
-    detectionStore.fetchDailySummary(today)
-  ])
+  try {
+    await Promise.all([
+      detectionStore.fetchRecentDetections(),
+      detectionStore.fetchDailySummary(today)
+    ])
+    console.log('Data fetched successfully')
+  } catch (error) {
+    console.error('Error fetching data:', error)
+  }
 })
 </script>

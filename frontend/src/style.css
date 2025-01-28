@@ -82,3 +82,17 @@
 ::-webkit-scrollbar-thumb {
   @apply bg-gray-300 rounded hover:bg-gray-400;
 }
+
+/* Modal Styles */
+.modal-backdrop {
+  @apply fixed inset-0 bg-black bg-opacity-50;
+}
+
+.modal-content {
+  @apply fixed inset-0 flex items-center justify-center;
+}
+
+/* Ensure modals are always on top */
+[role="dialog"] {
+  @apply z-[9999];
+}
