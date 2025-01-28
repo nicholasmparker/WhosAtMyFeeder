@@ -14,7 +14,7 @@
             <div v-if="detection.enhancement_status === 'completed'" class="w-full h-full relative group/image">
               <!-- Enhanced Image (Default View) -->
               <img 
-                :src="detection.enhanced_path || `/api/enhanced/${detection.frigate_event}/snapshot.jpg`"
+                :src="`/api/enhanced/${detection.frigate_event}/snapshot.jpg`"
                 :alt="`Enhanced ${detection.common_name}`"
                 class="w-full h-full object-cover absolute inset-0 transition-opacity duration-300 group-hover/image:opacity-0"
                 @error="handleImageError"
@@ -44,6 +44,17 @@
               </div>
             </div>
 
+            <!-- Special Detection Badge -->
+            <div v-if="detection.is_special" 
+                 class="absolute top-2 left-2 px-2.5 py-1.5 rounded-full shadow-sm text-xs font-medium"
+                 :class="{
+                   'bg-purple-500 text-white': detection.highlight_type === 'rare',
+                   'bg-blue-500 text-white': detection.highlight_type === 'quality',
+                   'bg-green-500 text-white': detection.highlight_type === 'behavior'
+                 }">
+              {{ formatHighlightType(detection.highlight_type) }}
+            </div>
+
             <!-- Time and Metadata Overlay -->
             <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
               <div class="absolute bottom-0 left-0 right-0 p-3">
@@ -55,7 +66,18 @@
           <!-- Info Bar -->
           <div class="px-4 py-3 bg-white">
             <!-- Species Name -->
-            <h3 class="text-sm font-medium text-gray-900 truncate mb-3">{{ detection.common_name }}</h3>
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-medium text-gray-900 truncate">{{ detection.common_name }}</h3>
+              <span v-if="detection.is_special && detection.special_score" 
+                    class="text-xs font-medium"
+                    :class="{
+                      'text-purple-600': detection.highlight_type === 'rare',
+                      'text-blue-600': detection.highlight_type === 'quality',
+                      'text-green-600': detection.highlight_type === 'behavior'
+                    }">
+                {{ (detection.special_score * 100).toFixed(0) }}%
+              </span>
+            </div>
             
             <!-- Scores -->
             <div class="space-y-2">
@@ -136,6 +158,11 @@ const formatDateTime = (dateTime: string) => {
     minute: 'numeric',
     hour12: true
   }).format(date)
+}
+
+const formatHighlightType = (type?: string) => {
+  if (!type) return ''
+  return type.charAt(0).toUpperCase() + type.slice(1)
 }
 
 const openModal = (detection: Detection) => {

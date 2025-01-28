@@ -17,6 +17,19 @@
       
       <!-- Content -->
       <div class="p-6">
+        <!-- Special Detection Badge -->
+        <div v-if="detection.is_special && detection.special_score" class="mb-4">
+          <div class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
+               :class="{
+                 'bg-purple-100 text-purple-800': detection.highlight_type === 'rare',
+                 'bg-blue-100 text-blue-800': detection.highlight_type === 'quality',
+                 'bg-green-100 text-green-800': detection.highlight_type === 'behavior'
+               }">
+            <span class="mr-2">{{ formatHighlightType(detection.highlight_type) }} Detection</span>
+            <span class="text-xs">{{ Math.round(detection.special_score * 100) }}%</span>
+          </div>
+        </div>
+
         <!-- Images Side by Side -->
         <div class="flex flex-col md:flex-row gap-4">
           <!-- Original Image -->
@@ -42,7 +55,7 @@
             <h4 class="text-lg font-medium mb-2">Enhanced Image</h4>
             <div class="relative aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden">
               <img 
-                :src="enhancedImageUrl" 
+                :src="`/api/enhanced/${detection.frigate_event}/${useThumbnails ? 'thumbnail' : 'snapshot'}.jpg`"
                 class="w-full h-full object-contain" 
                 alt="Enhanced detection" 
                 @error="handleImageError" 
@@ -62,6 +75,17 @@
             <p><span class="font-medium">Species:</span> {{ detection.common_name }} ({{ detection.scientific_name }})</p>
             <p><span class="font-medium">Confidence:</span> {{ Math.round(detection.score * 100) }}%</p>
             <p><span class="font-medium">Camera:</span> {{ detection.camera_name }}</p>
+          </div>
+        </div>
+
+        <!-- Special Detection Details -->
+        <div v-if="detection.is_special && detection.special_score" class="mt-6">
+          <h4 class="text-lg font-medium mb-2">Special Detection Details</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <p><span class="font-medium">Type:</span> {{ formatHighlightType(detection.highlight_type) }}</p>
+            <p><span class="font-medium">Score:</span> {{ Math.round(detection.special_score * 100) }}%</p>
+            <p><span class="font-medium">Community Votes:</span> {{ detection.community_votes || 0 }}</p>
+            <p><span class="font-medium">Featured Status:</span> {{ detection.featured_status ? 'Yes' : 'No' }}</p>
           </div>
         </div>
       </div>
@@ -99,14 +123,14 @@ const originalImageUrl = computed(() => {
   return `/frigate/${props.detection.frigate_event}/${useThumbnails.value ? 'thumbnail' : 'snapshot'}.jpg`
 })
 
-const enhancedImageUrl = computed(() => {
-  if (!props.detection) return ''
-  return props.detection.enhanced_path || `/api/enhanced/${props.detection.frigate_event}/${useThumbnails.value ? 'thumbnail' : 'snapshot'}.jpg`
-})
-
 const hasEnhancedImage = computed(() => {
   return props.detection?.enhancement_status === 'completed'
 })
+
+const formatHighlightType = (type?: string) => {
+  if (!type) return ''
+  return type.charAt(0).toUpperCase() + type.slice(1)
+}
 
 const handleImageError = (event: Event) => {
   const img = event.target as HTMLImageElement
