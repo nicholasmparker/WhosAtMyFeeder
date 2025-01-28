@@ -1,30 +1,28 @@
 frigate:
-  frigate_url: http://your-frigate-server:5000
-  mqtt_server: 192.168.1.100
+  frigate_url: http://dagon.chickenmilkbomb.com:5000
+  mqtt_server: 192.168.0.73
   mqtt_auth: true
-  mqtt_username: your-mqtt-username
-  mqtt_password: your-mqtt-password
+  mqtt_username: homeassistant-mqtt
+  mqtt_password: 1d3pdn
   main_topic: frigate
   camera:
-    - YourCamera
+    - Griffin
   object: bird
-  events_path: /path/to/frigate/events  # Path to Frigate event snapshots
 
 classification:
-  model: model.tflite
-  threshold: 0.4  # Lowered from 0.7 to catch more birds
+  model: /app/model.tflite
+  threshold: 0.7  # Standard threshold for reliable species identification
 
 webui:
   port: 7766
   host: 0.0.0.0
-  timezone: America/Chicago  # Your local timezone
 
 weather:
   provider: "openweathermap"
-  api_key: "your-openweather-api-key"
+  api_key: "YOUR_API_KEY_HERE"
   location:
-    lat: 30.0000
-    lon: -97.0000
+    lat: 30.1561588
+    lon: -97.9716318 
   units: "imperial"  # "imperial" for °F or "metric" for °C
   update_interval: 300  
   historical_data: true
@@ -32,18 +30,14 @@ weather:
 image_processing:
   local_models:
     quality_assessment:
-      type: "tf-iqa"
-      model_path: "models/quality/tf-iqa-model"
+      type: "basic"
       threshold: 0.7
-      batch_size: 32
     enhancement:
-      type: "real-esrgan"
-      model_path: "models/enhancement/RealESRGAN_x4plus"
-      scale: 4
+      type: "real-esrgan"  # Uses docker run command directly
       
   remote_models:
     openai:
-      api_key: "your-openai-api-key"  # OpenAI API key
+      api_key: "YOUR_API_KEY_HERE"
       model: "gpt-4-vision-preview"
       batch_size: 10
       cost_limit: 5.00  # daily limit in USD
@@ -63,23 +57,10 @@ image_processing:
   storage:
     enhanced_images_path: "data/enhanced_images"
     cache_path: "data/analysis_cache"
+    frigate_events_path: "/data/frigate/events"  # Path inside the container where Frigate events are mounted
 
   batch_processing:
     enabled: true
     schedule: "0 2 * * *"  # Run at 2 AM daily
     max_images_per_batch: 100
     min_detection_score: 0.8  # Only process high-confidence detections
-
-database:
-  path: /data/speciesid.db
-  backup:
-    enabled: true
-    schedule: "0 1 * * *"  # Daily at 1 AM
-    retention_days: 7
-    path: /data/backups
-
-logging:
-  level: INFO
-  file: /data/app.log
-  max_size: 10MB
-  backup_count: 5
