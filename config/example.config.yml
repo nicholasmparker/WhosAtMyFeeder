@@ -1,30 +1,30 @@
 frigate:
-  frigate_url: http://dagon.chickenmilkbomb.com:5000
-  mqtt_server: 192.168.0.73
+  frigate_url: "http://your.frigate.server:5000"
+  mqtt_server: "mqtt.server.local"
   mqtt_auth: true
-  mqtt_username: homeassistant-mqtt
-  mqtt_password: 1d3pdn
-  main_topic: frigate
+  mqtt_username: "your_mqtt_username"
+  mqtt_password: "your_mqtt_password"
+  main_topic: "frigate"
   camera:
-    - Griffin
-  object: bird
+    - "Camera1"
+  object: "bird"
 
 classification:
-  model: /app/model.tflite
+  model: "/app/model.tflite"
   threshold: 0.7  # Standard threshold for reliable species identification
 
 webui:
   port: 7766
-  host: 0.0.0.0
+  host: "0.0.0.0"
 
 weather:
   provider: "openweathermap"
-  api_key: "YOUR_API_KEY_HERE"
+  api_key: "YOUR_OPENWEATHER_API_KEY"
   location:
-    lat: 30.1561588
-    lon: -97.9716318 
+    lat: 00.0000000
+    lon: -00.0000000
   units: "imperial"  # "imperial" for °F or "metric" for °C
-  update_interval: 300  
+  update_interval: 300
   historical_data: true
 
 image_processing:
@@ -33,11 +33,11 @@ image_processing:
       type: "basic"
       threshold: 0.7
     enhancement:
-      type: "real-esrgan"  # Uses docker run command directly
-      
+      type: "real-esrgan"
+
   remote_models:
     openai:
-      api_key: "YOUR_API_KEY_HERE"
+      api_key: "YOUR_OPENAI_API_KEY"
       model: "gpt-4-vision-preview"
       batch_size: 10
       cost_limit: 5.00  # daily limit in USD
@@ -53,14 +53,14 @@ image_processing:
            - Multiple birds?
            - Unusual pose?
            - Interesting interaction?
-    
+
   storage:
     enhanced_images_path: "data/enhanced_images"
     cache_path: "data/analysis_cache"
-    frigate_events_path: "/data/frigate/events"  # Path inside the container where Frigate events are mounted
+    frigate_events_path: "/data/frigate/events"
 
   batch_processing:
     enabled: true
     schedule: "0 2 * * *"  # Run at 2 AM daily
     max_images_per_batch: 100
-    min_detection_score: 0.8  # Only process high-confidence detections
+    min_detection_score: 0.8
