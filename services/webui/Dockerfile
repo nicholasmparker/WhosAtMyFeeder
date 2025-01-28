@@ -44,7 +44,8 @@ COPY services/shared /app/services/shared
 COPY services/webui /app/services/webui
 COPY init_db.sql /app/
 COPY migrations /app/migrations/
-COPY populate_birdnames.py /app/
+COPY services/speciesid/populate_birdnames.py /app/
+COPY reprocess_quality.py /app/
 
 # Copy and set entrypoint
 COPY services/webui/entrypoint.sh /usr/local/bin/
