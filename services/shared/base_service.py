@@ -32,14 +32,14 @@ class BaseService(Generic[T]):
         return {
             'id': data.get('id'),
             'detection_time': data.get('detection_time'),  # Already formatted by SQLite
-            'display_name': data.get('display_name'),
+            'scientific_name': data.get('scientific_name'),  # Standardized field name
             'score': data.get('score'),
             'frigate_event': data.get('frigate_event'),
             'common_name': data.get('common_name'),
             'visibility_score': data.get('visibility_score', 0),
             'clarity_score': data.get('clarity_score', 0),
             'composition_score': data.get('composition_score', 0),
-            'enhancement_status': data.get('enhancement_status'),
+            'enhancement_status': data.get('enhancement_status', 'pending'),
             'quality_improvement': data.get('quality_improvement', 0),
             'enhanced_path': data.get('enhanced_path'),
             'enhanced_thumbnail_path': data.get('enhanced_thumbnail_path'),
@@ -47,7 +47,10 @@ class BaseService(Generic[T]):
             'highlight_type': data.get('highlight_type'),
             'special_score': data.get('special_score'),
             'community_votes': data.get('community_votes', 0),
-            'featured_status': data.get('featured_status', 0)
+            'featured_status': data.get('featured_status', 0),
+            'category_name': data.get('category_name'),
+            'camera_name': data.get('camera_name'),
+            'detection_index': data.get('detection_index')
         }
 
     def format_response(self, data: Dict[str, Any], is_detection: bool = False) -> Dict[str, Any]:
