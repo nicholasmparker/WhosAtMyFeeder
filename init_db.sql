@@ -5,7 +5,24 @@ CREATE TABLE IF NOT EXISTS detections (
     display_name TEXT,  -- Scientific name
     score REAL,
     frigate_event TEXT,
+    category_name TEXT,
+    camera_name TEXT,
+    detection_index INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS image_quality (
+    detection_id INTEGER PRIMARY KEY,
+    clarity_score REAL,
+    composition_score REAL,
+    behavior_tags TEXT,
+    enhanced_path TEXT,
+    enhanced_thumbnail_path TEXT,
+    enhancement_status TEXT CHECK(enhancement_status IN ('pending', 'completed', 'failed')),
+    quality_improvement REAL,
+    visibility_score REAL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (detection_id) REFERENCES detections(id)
 );
 
 CREATE TABLE IF NOT EXISTS birdnames (
@@ -24,20 +41,6 @@ CREATE TABLE IF NOT EXISTS rarity_scores (
     total_visits INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (species_id) REFERENCES birdnames(scientific_name)
-);
-
-CREATE TABLE IF NOT EXISTS image_quality (
-    detection_id INTEGER PRIMARY KEY,
-    clarity_score REAL,        -- 0-1 score for image clarity/focus
-    composition_score REAL,    -- 0-1 score for composition/framing
-    behavior_tags TEXT,        -- JSON array of behavior tags
-    enhanced_path TEXT,
-    enhanced_thumbnail_path TEXT,
-    enhancement_status TEXT CHECK(enhancement_status IN ("pending", "completed", "failed")),
-    quality_improvement REAL,
-    visibility_score REAL,     -- 0-1 score for bird visibility
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (detection_id) REFERENCES detections(id)
 );
 
 CREATE TABLE IF NOT EXISTS special_detections (
@@ -93,6 +96,7 @@ CREATE TABLE IF NOT EXISTS detection_weather (
     FOREIGN KEY (weather_id) REFERENCES weather_conditions(id)
 );
 
+-- Indexes for performance
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_detections_time ON detections(detection_time);
 CREATE INDEX IF NOT EXISTS idx_detections_species ON detections(display_name);

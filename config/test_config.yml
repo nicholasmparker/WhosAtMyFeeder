@@ -1,0 +1,11 @@
+image_processing:
+  local_models:
+    quality_assessment:
+      type: "basic"  # Use our basic OpenCV-based model
+      threshold: 0.5  # Enhance images with clarity score below this
+    enhancement:
+      type: "real-esrgan"
+      
+  storage:
+    enhanced_images_path: "data/enhanced_images"
+    cache_path: "data/analysis_cache"

@@ -14,7 +14,6 @@ services:
       - "5678:5678"  # Debug port
     volumes:
       - ./services:/app/services:delegated  # Mount all services code
-      - ./migrations:/app/migrations:delegated  # Mount migrations
       - ./config:/app/config:ro
       - ./data:/data
       - ./models:/app/models:ro

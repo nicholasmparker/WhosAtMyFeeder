@@ -1,140 +1,143 @@
 # Development Guide
 
-## Development Environment Setup
+This document outlines how to set up and run the Who's At My Feeder development environment.
 
-### Quick Start
+## Prerequisites
+
+- Docker and Docker Compose
+- Node.js 16+ (for local frontend development)
+- Python 3.9+ (for running scripts directly)
+- Git
+
+## Environment Setup
+
+1. Clone the repository:
 ```bash
-# Start development environment with hot reloading
-./run_dev.sh
-
-# Clean database and volumes before starting
-./run_dev.sh --clean
-
-# Rebuild containers before starting
-./run_dev.sh --rebuild
-
-# Show help
-./run_dev.sh --help
+git clone https://github.com/yourusername/WhosAtMyFeeder.git
+cd WhosAtMyFeeder
 ```
 
-### Features
-- Hot reloading for all services
-- Source code mounted as volumes
-- Debug support
-- Real-time code changes without rebuilds
-
-### Services
-
-#### Frontend (Vue.js)
-- Hot module replacement enabled
-- Source code mounted at `/app/src`
-- Node modules in named volume
-- Access at http://localhost:5173
-
-#### Web UI (Flask)
-- Debug mode enabled
-- Hot reloading with debugpy
-- Debug port: 5678
-- Access at http://localhost:7766
-
-#### WebSocket (FastAPI)
-- Hot reloading with uvicorn
-- Source code mounted
-- Access at ws://localhost:8765
-
-#### Species ID (MQTT Client)
-- Custom file watcher for hot reloading
-- Source code mounted
-- Automatic reconnection on changes
-
-### Development Workflow
-
-1. Start the development environment:
+2. Create a config file:
 ```bash
-# Basic start
-./run_dev.sh
+cp config/example.config.yml config/config.yml
+```
+Edit `config/config.yml` with your specific configuration settings.
 
-# With options
-./run_dev.sh --clean    # Clean database and volumes
-./run_dev.sh --rebuild  # Rebuild containers
+3. Download required ML models:
+```bash
+./download_models.sh
 ```
 
-2. Make changes to the code:
-- Changes to Python files will trigger automatic reloads
-- Frontend changes will trigger hot module replacement
-- Database migrations will be applied automatically
+## Running the Development Environment
 
-3. Debugging:
-- VSCode can attach to any service using the exposed debug ports
-- Frontend debugging through browser dev tools
-- Python services support remote debugging
+### Full Stack Development (Recommended)
 
-4. When to rebuild:
-- Only rebuild when changing dependencies:
-  ```bash
-  docker-compose build
-  ```
-- For Dockerfile changes:
-  ```bash
-  docker-compose build --no-cache
-  ```
+This method runs all services in Docker containers:
 
-### Best Practices
+```bash
+# Start all services
+docker-compose -f docker-compose.dev.yml up --build
 
-1. Use volume mounts:
-- Keep source code mounted for development
-- Use named volumes for node_modules
-- Mount configuration files as read-only
+# To run in detached mode
+docker-compose -f docker-compose.dev.yml up --build -d
 
-2. Enable hot reload:
-- Use development-specific environment variables
-- Enable debug modes when appropriate
-- Configure proper file watching
+# To view logs when running in detached mode
+docker-compose -f docker-compose.dev.yml logs -f
+```
 
-3. Database:
-- Use migrations for schema changes
-- Keep test data in SQL files
-- Initialize database on container start
+The following services will be available:
 
-4. Configuration:
-- Keep sensitive data in config.yml (gitignored)
-- Use example.config.yml for templates
-- Set development-specific variables in docker-compose.dev.yml
+- Frontend: http://localhost:5173
+- WebUI API: http://localhost:7766
+- WebSocket Server: ws://localhost:8765
+- Species ID Service: http://localhost:8766
 
-### Troubleshooting
+### Frontend-Only Development
 
-1. Hot reload not working:
-- Check file permissions
-- Verify volume mounts
-- Ensure development mode is enabled
+If you only need to work on the frontend:
 
-2. Database issues:
-- Check if migrations are applied
-- Verify database initialization
-- Check volume persistence
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-3. Frontend build problems:
-- Clear node_modules volume
-- Rebuild with --no-cache
-- Check for dependency conflicts
+The frontend will be available at http://localhost:5173, but API calls will fail unless the backend services are running.
 
-4. Service connectivity:
-- Verify ports are exposed
-- Check network configuration
-- Ensure services are healthy
+### Backend-Only Development
 
-### Production vs Development
+To run individual backend services:
 
-#### Development
-- Uses docker-compose.dev.yml
-- Hot reloading enabled
-- Debug ports exposed
-- Source code mounted
-- Development dependencies
+```bash
+# WebUI Service
+python -m services.webui.webui
 
-#### Production
-- Uses docker-compose.yml
-- Optimized builds
-- No source mounting
-- No debug ports
-- Minimal dependencies
+# WebSocket Server
+uvicorn services.websocket.websocket_server:app --host 0.0.0.0 --port 8765 --reload
+
+# Species ID Service
+python -m services.speciesid.speciesid
+```
+
+## Development Tools
+
+### Hot Reloading
+
+- Frontend code changes will automatically trigger a rebuild
+- Backend Python files are mounted as volumes in development, enabling hot reloading
+- Database migrations require a service restart
+
+### Debugging
+
+Debug ports are exposed for each service:
+- WebUI: 5678
+- WebSocket: 5679
+- Species ID: 5680
+
+### Database
+
+The development environment uses SQLite by default. The database file is created at `data/database.db`.
+
+To reset the database:
+```bash
+rm data/database.db
+python init_db.sql
+```
+
+## Common Issues
+
+1. Port Conflicts
+   - If a port is already in use, either stop the conflicting service or modify the port in docker-compose.dev.yml
+
+2. Permission Issues
+   - Ensure proper permissions on mounted volumes
+   - Some directories (input/, output/, data/) must be writable
+
+3. Missing Models
+   - Run `download_models.sh` if you see model-related errors
+   - Check models/ directory for required files
+
+## Best Practices
+
+1. Branch Management
+   - Create feature branches from main
+   - Use descriptive branch names (e.g., feature/enhanced-image-display)
+   - Keep branches up to date with main
+
+2. Code Style
+   - Frontend: Follow Vue.js Style Guide
+   - Backend: Follow PEP 8
+   - Use TypeScript for new frontend code
+   - Add appropriate documentation
+
+3. Testing
+   - Write tests for new features
+   - Run existing tests before submitting PRs
+   - Test across different screen sizes for frontend changes
+
+## Additional Resources
+
+- [Vue.js Documentation](https://vuejs.org/)
+- [Vite Documentation](https://vitejs.dev/)
+- [TailwindCSS Documentation](https://tailwindcss.com/)
+- [Docker Documentation](https://docs.docker.com/)

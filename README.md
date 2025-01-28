@@ -135,3 +135,25 @@ This project uses YAML configuration files to manage settings and secrets. To se
 
 > ⚠️ IMPORTANT: Never commit config.yml to version control as it contains sensitive data.
 > Use example.config.yml as a template and keep your actual configuration local.
+
+## Development
+
+For developers looking to contribute or modify the application:
+
+1. Check out our [Development Guide](docs/development.md) for detailed instructions on:
+   - Setting up the development environment
+   - Running services locally
+   - Best practices and coding standards
+   - Common issues and solutions
+
+2. The application uses a microservices architecture with:
+   - Vue.js frontend with TypeScript
+   - Python backend services
+   - WebSocket for real-time updates
+   - SQLite database (in development)
+
+3. Development environment features:
+   - Hot reloading for both frontend and backend
+   - Docker-based development setup
+   - Debugging support for all services
+   - Automated testing infrastructure
