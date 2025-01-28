@@ -118,3 +118,20 @@ http://127.0.0.1:7766 or on http://yourserveraddress:7766
 
 **Docker Image**
 The image is on Docker Hub at https://hub.docker.com/r/mmcc73/whosatmyfeeder
+
+## Configuration
+
+This project uses YAML configuration files to manage settings and secrets. To set up:
+
+1. Copy the example config:
+   ```bash
+   cp config/example.config.yml config/config.yml
+   ```
+
+2. Edit config.yml with your settings:
+   - Add your API keys
+   - Configure endpoints
+   - Set environment-specific values
+
+> ⚠️ IMPORTANT: Never commit config.yml to version control as it contains sensitive data.
+> Use example.config.yml as a template and keep your actual configuration local.
