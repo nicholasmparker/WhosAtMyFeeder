@@ -46,21 +46,7 @@ export const useDetectionStore = defineStore('detection', {
           this.recentDetections = []
           this.hasRecentDetections = false
         } else {
-          // Map response data to Detection interface
-          this.recentDetections = response.data.map((detection: any) => ({
-            ...detection,
-            visibility_score: detection.visibility_score || detection.quality_score || 0,
-            clarity_score: detection.clarity_score || 0,
-            composition_score: detection.composition_score || 0,
-            quality_improvement: detection.quality_improvement || 0,
-            enhanced_path: detection.enhanced_path || null,
-            enhanced_thumbnail_path: detection.enhanced_thumbnail_path || null,
-            is_special: detection.is_special || false,
-            highlight_type: detection.highlight_type || null,
-            special_score: detection.special_score || null,
-            community_votes: detection.community_votes || 0,
-            featured_status: detection.featured_status || 0
-          }))
+          this.recentDetections = response.data
           this.hasRecentDetections = Array.isArray(response.data) && response.data.length > 0
         }
         this.error = null
@@ -88,20 +74,7 @@ export const useDetectionStore = defineStore('detection', {
           this.specialDetections = []
           this.hasSpecialDetections = false
         } else {
-          this.specialDetections = response.data.map((detection: any) => ({
-            ...detection,
-            visibility_score: detection.visibility_score || 0,
-            clarity_score: detection.clarity_score || 0,
-            composition_score: detection.composition_score || 0,
-            quality_improvement: detection.quality_improvement || 0,
-            enhanced_path: detection.enhanced_path || null,
-            enhanced_thumbnail_path: detection.enhanced_thumbnail_path || null,
-            is_special: true,
-            highlight_type: detection.highlight_type || null,
-            special_score: detection.score || null,
-            community_votes: detection.community_votes || 0,
-            featured_status: detection.featured_status || 0
-          }))
+          this.specialDetections = response.data
           this.hasSpecialDetections = Array.isArray(response.data) && response.data.length > 0
         }
         this.error = null

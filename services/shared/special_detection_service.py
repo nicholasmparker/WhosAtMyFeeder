@@ -4,6 +4,35 @@ from .base_service import BaseService
 class SpecialDetectionService(BaseService):
     """Service for handling special bird detections with standardized responses."""
 
+    def _base_special_detection_query(self) -> str:
+        """Base query for getting special detection data with consistent field names."""
+        return """
+            SELECT 
+                d.id,
+                datetime(d.detection_time, 'localtime') as detection_time,
+                d.display_name,
+                d.score,
+                d.frigate_event,
+                b.common_name,
+                COALESCE(iq.clarity_score, 0) as clarity_score,
+                COALESCE(iq.composition_score, 0) as composition_score,
+                iq.behavior_tags,
+                COALESCE(iq.clarity_score * 0.6 + iq.composition_score * 0.4, 0) as visibility_score,
+                d.enhancement_status,
+                COALESCE(iq.quality_improvement, 0) as quality_improvement,
+                iq.enhanced_path,
+                iq.enhanced_thumbnail_path,
+                1 as is_special,
+                sd.highlight_type,
+                sd.score as special_score,
+                sd.community_votes,
+                sd.featured_status
+            FROM special_detections sd
+            JOIN detections d ON sd.detection_id = d.id
+            JOIN birdnames b ON d.display_name = b.scientific_name
+            LEFT JOIN image_quality iq ON d.id = iq.detection_id
+        """
+
     def get_recent_special_detections(self, limit: int = 10) -> List[Dict[str, Any]]:
         """
         Get recent special detections with all related data.
@@ -14,23 +43,8 @@ class SpecialDetectionService(BaseService):
         Returns:
             List of special detections with full metadata
         """
-        query = """
-            SELECT 
-                sd.*,
-                d.detection_time,
-                d.display_name,
-                d.score as detection_score,
-                d.frigate_event,
-                b.common_name,
-                iq.clarity_score,
-                iq.composition_score,
-                iq.behavior_tags,
-                COALESCE(iq.clarity_score * 0.6 + iq.composition_score * 0.4, 0) as visibility_score,
-                d.enhancement_status
-            FROM special_detections sd
-            JOIN detections d ON sd.detection_id = d.id
-            JOIN birdnames b ON d.display_name = b.scientific_name
-            LEFT JOIN image_quality iq ON d.id = iq.detection_id
+        query = f"""
+            {self._base_special_detection_query()}
             ORDER BY sd.created_at DESC
             LIMIT ?
         """
@@ -49,23 +63,8 @@ class SpecialDetectionService(BaseService):
         if highlight_type not in ['rare', 'quality', 'behavior']:
             raise ValueError("Invalid highlight type")
 
-        query = """
-            SELECT 
-                sd.*,
-                d.detection_time,
-                d.display_name,
-                d.score as detection_score,
-                d.frigate_event,
-                b.common_name,
-                iq.clarity_score,
-                iq.composition_score,
-                iq.behavior_tags,
-                COALESCE(iq.clarity_score * 0.6 + iq.composition_score * 0.4, 0) as visibility_score,
-                d.enhancement_status
-            FROM special_detections sd
-            JOIN detections d ON sd.detection_id = d.id
-            JOIN birdnames b ON d.display_name = b.scientific_name
-            LEFT JOIN image_quality iq ON d.id = iq.detection_id
+        query = f"""
+            {self._base_special_detection_query()}
             WHERE sd.highlight_type = ?
             ORDER BY sd.score DESC
             LIMIT 50
