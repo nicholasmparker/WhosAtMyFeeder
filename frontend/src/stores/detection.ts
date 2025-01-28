@@ -32,10 +32,12 @@ export const useDetectionStore = defineStore('detection', {
   }),
 
   actions: {
-    async fetchRecentDetections() {
+    async fetchRecentDetections(limit: string = '5') {
       this.loading = true
       try {
-        const response = await api.get('/api/detections/recent')
+        const response = await api.get('/api/detections/recent', {
+          params: { limit }
+        })
         if (response.data === null || response.data === undefined) {
           this.recentDetections = []
           this.hasRecentDetections = false
@@ -48,7 +50,12 @@ export const useDetectionStore = defineStore('detection', {
             composition_score: detection.composition_score || 0,
             quality_improvement: detection.quality_improvement || 0,
             enhanced_path: detection.enhanced_path || null,
-            enhanced_thumbnail_path: detection.enhanced_thumbnail_path || null
+            enhanced_thumbnail_path: detection.enhanced_thumbnail_path || null,
+            is_special: detection.is_special || false,
+            highlight_type: detection.highlight_type || null,
+            special_score: detection.special_score || null,
+            community_votes: detection.community_votes || 0,
+            featured_status: detection.featured_status || 0
           }))
           this.hasRecentDetections = Array.isArray(response.data) && response.data.length > 0
         }

@@ -94,7 +94,7 @@ onMounted(async () => {
   const today = new Date().toISOString().split('T')[0]
   try {
     await Promise.all([
-      detectionStore.fetchRecentDetections(),
+      detectionStore.fetchRecentDetections('50'), // Fetch more detections to include special ones
       detectionStore.fetchDailySummary(today)
     ])
     console.log('Data fetched successfully')

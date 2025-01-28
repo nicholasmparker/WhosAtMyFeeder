@@ -33,8 +33,25 @@
               {{ formatDateTime(detection.detection_time) }}
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
-              <div class="text-sm font-medium text-gray-900">{{ detection.common_name }}</div>
-              <div class="text-sm text-gray-500">{{ detection.scientific_name }}</div>
+              <div class="flex items-center">
+                <div>
+                  <div class="text-sm font-medium text-gray-900">{{ detection.common_name }}</div>
+                  <div class="text-sm text-gray-500">{{ detection.scientific_name }}</div>
+                </div>
+                <!-- Special Detection Badge -->
+                <div v-if="detection.is_special" class="ml-2">
+                  <span 
+                    class="px-2 py-1 text-xs font-medium rounded-full"
+                    :class="{
+                      'bg-purple-100 text-purple-800': detection.highlight_type === 'rare',
+                      'bg-blue-100 text-blue-800': detection.highlight_type === 'quality',
+                      'bg-green-100 text-green-800': detection.highlight_type === 'behavior'
+                    }"
+                  >
+                    {{ formatHighlightType(detection.highlight_type) }}
+                  </span>
+                </div>
+              </div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
               <div class="flex items-center">
@@ -51,6 +68,10 @@
                   ></div>
                 </div>
                 <span class="ml-2 text-sm text-gray-700">{{ (detection.score * 100).toFixed(0) }}%</span>
+                <span v-if="detection.is_special && detection.special_score" 
+                      class="ml-2 text-xs text-purple-600">
+                  Special: {{ (detection.special_score * 100).toFixed(0) }}%
+                </span>
               </div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
@@ -92,6 +113,11 @@
                   <div v-if="detection.enhancement_status === 'completed'" 
                        class="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full opacity-75">
                     Enhanced
+                  </div>
+                  <!-- Special Detection Indicator -->
+                  <div v-if="detection.is_special" 
+                       class="absolute bottom-2 right-2 bg-purple-500 text-white text-xs px-2 py-1 rounded-full opacity-75">
+                    Special
                   </div>
                 </div>
                 <!-- View button -->
@@ -149,6 +175,11 @@ const formatDateTime = (dateTime: string) => {
     hour12: true,
     timeZoneName: 'short'
   }).format(date)
+}
+
+const formatHighlightType = (type?: string) => {
+  if (!type) return ''
+  return type.charAt(0).toUpperCase() + type.slice(1)
 }
 
 const openModal = (detection: Detection) => {

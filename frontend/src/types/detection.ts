@@ -15,4 +15,9 @@ export interface Detection {
   category_name?: string
   camera_name?: string
   detection_index?: number
+  is_special?: boolean
+  highlight_type?: 'rare' | 'quality' | 'behavior'
+  special_score?: number
+  community_votes?: number
+  featured_status?: number
 }
