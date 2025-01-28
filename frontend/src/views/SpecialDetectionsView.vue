@@ -61,13 +61,15 @@ const filteredDetections = computed(() => {
 const fetchDetections = async () => {
   try {
     loading.value = true
-    if (currentType.value === 'all') {
-      const response = await fetch('/api/special-detections/recent')
-      detections.value = await response.json()
-    } else {
-      const response = await fetch(`/api/special-detections/by-type/${currentType.value}`)
-      detections.value = await response.json()
+    const url = currentType.value === 'all'
+      ? '/api/special-detections/recent'
+      : `/api/special-detections/by-type/${currentType.value}`
+      
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
     }
+    detections.value = await response.json()
   } catch (error) {
     console.error('Error fetching special detections:', error)
   } finally {
