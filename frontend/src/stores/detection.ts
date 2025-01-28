@@ -14,20 +14,24 @@ interface DailySummary {
 
 interface DetectionState {
   recentDetections: Detection[]
+  specialDetections: Detection[]
   dailySummary: DailySummary
   loading: boolean
   error: string | null
   hasRecentDetections: boolean
+  hasSpecialDetections: boolean
   hasDailySummary: boolean
 }
 
 export const useDetectionStore = defineStore('detection', {
   state: (): DetectionState => ({
     recentDetections: [],
+    specialDetections: [],
     dailySummary: {},
     loading: false,
     error: null,
     hasRecentDetections: false,
+    hasSpecialDetections: false,
     hasDailySummary: false
   }),
 
@@ -72,6 +76,44 @@ export const useDetectionStore = defineStore('detection', {
       }
     },
 
+    async fetchSpecialDetections(type: string = 'all') {
+      this.loading = true
+      try {
+        const url = type === 'all'
+          ? '/api/special-detections/recent'
+          : `/api/special-detections/by-type/${type}`
+          
+        const response = await api.get(url)
+        if (response.data === null || response.data === undefined) {
+          this.specialDetections = []
+          this.hasSpecialDetections = false
+        } else {
+          this.specialDetections = response.data.map((detection: any) => ({
+            ...detection,
+            visibility_score: detection.visibility_score || 0,
+            clarity_score: detection.clarity_score || 0,
+            composition_score: detection.composition_score || 0,
+            quality_improvement: detection.quality_improvement || 0,
+            enhanced_path: detection.enhanced_path || null,
+            enhanced_thumbnail_path: detection.enhanced_thumbnail_path || null,
+            is_special: true,
+            highlight_type: detection.highlight_type || null,
+            special_score: detection.score || null,
+            community_votes: detection.community_votes || 0,
+            featured_status: detection.featured_status || 0
+          }))
+          this.hasSpecialDetections = Array.isArray(response.data) && response.data.length > 0
+        }
+        this.error = null
+      } catch (error: any) {
+        this.error = 'Failed to fetch special detections'
+        console.error('Error fetching special detections:', error)
+        this.hasSpecialDetections = false
+      } finally {
+        this.loading = false
+      }
+    },
+
     async fetchDailySummary(date: string) {
       this.loading = true
       try {
@@ -94,9 +136,10 @@ export const useDetectionStore = defineStore('detection', {
 
   getters: {
     getRecentDetections: (state): Detection[] => state.recentDetections,
+    getSpecialDetections: (state): Detection[] => state.specialDetections,
     getDailySummary: (state): DailySummary => state.dailySummary,
     isLoading: (state): boolean => state.loading,
     getError: (state): string | null => state.error,
-    hasData: (state): boolean => state.hasRecentDetections || state.hasDailySummary
+    hasData: (state): boolean => state.hasRecentDetections || state.hasSpecialDetections || state.hasDailySummary
   }
 })

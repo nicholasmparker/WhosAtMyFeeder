@@ -26,6 +26,17 @@
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
     </div>
 
+    <!-- Error State -->
+    <div v-else-if="error" class="text-center py-12">
+      <p class="text-red-600">{{ error }}</p>
+      <button 
+        @click="fetchDetections"
+        class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+      >
+        Retry
+      </button>
+    </div>
+
     <!-- No Results -->
     <div 
       v-else-if="!filteredDetections.length" 
@@ -44,12 +55,16 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useDetectionStore } from '@/stores/detection'
 import BirdImageGrid from '@/components/BirdImageGrid.vue'
 import type { Detection } from '@/types/detection'
 
-const detections = ref<Detection[]>([])
-const loading = ref(true)
+const detectionStore = useDetectionStore()
 const currentType = ref('all')
+
+const loading = computed(() => detectionStore.isLoading)
+const error = computed(() => detectionStore.getError)
+const detections = computed(() => detectionStore.getSpecialDetections)
 
 const filteredDetections = computed(() => {
   if (currentType.value === 'all') {
@@ -59,22 +74,7 @@ const filteredDetections = computed(() => {
 })
 
 const fetchDetections = async () => {
-  try {
-    loading.value = true
-    const url = currentType.value === 'all'
-      ? '/api/special-detections/recent'
-      : `/api/special-detections/by-type/${currentType.value}`
-      
-    const response = await fetch(url)
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-    detections.value = await response.json()
-  } catch (error) {
-    console.error('Error fetching special detections:', error)
-  } finally {
-    loading.value = false
-  }
+  await detectionStore.fetchSpecialDetections(currentType.value)
 }
 
 // Watch for type changes to refetch data
