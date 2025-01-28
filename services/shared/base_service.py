@@ -24,18 +24,48 @@ class BaseService(Generic[T]):
         """Convert Unix timestamp to ISO 8601 format."""
         return datetime.fromtimestamp(timestamp).isoformat()
 
-    def format_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def format_detection(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Format a detection record into a consistent dictionary structure.
+        Used by both regular and special detections.
+        """
+        return {
+            'id': data.get('id'),
+            'detection_time': data.get('detection_time'),  # Already formatted by SQLite
+            'display_name': data.get('display_name'),
+            'score': data.get('score'),
+            'frigate_event': data.get('frigate_event'),
+            'common_name': data.get('common_name'),
+            'visibility_score': data.get('visibility_score', 0),
+            'clarity_score': data.get('clarity_score', 0),
+            'composition_score': data.get('composition_score', 0),
+            'enhancement_status': data.get('enhancement_status'),
+            'quality_improvement': data.get('quality_improvement', 0),
+            'enhanced_path': data.get('enhanced_path'),
+            'enhanced_thumbnail_path': data.get('enhanced_thumbnail_path'),
+            'is_special': bool(data.get('is_special', False)),
+            'highlight_type': data.get('highlight_type'),
+            'special_score': data.get('special_score'),
+            'community_votes': data.get('community_votes', 0),
+            'featured_status': data.get('featured_status', 0)
+        }
+
+    def format_response(self, data: Dict[str, Any], is_detection: bool = False) -> Dict[str, Any]:
         """
         Format API response following a consistent structure.
-        Converts Unix timestamps to ISO 8601 format.
+        
+        Args:
+            data: Data to format
+            is_detection: Whether this is a detection record
         """
+        if is_detection:
+            return self.format_detection(data)
+            
         formatted = {}
         for key, value in data.items():
             if isinstance(value, sqlite3.Row):
                 value = dict(value)
-            if key == 'detection_time' and value is not None:
-                formatted[key] = self.format_datetime(float(value))
-            elif isinstance(value, (dict, sqlite3.Row)):
+            if isinstance(value, (dict, sqlite3.Row)):
                 formatted[key] = self.format_response(dict(value))
             else:
                 formatted[key] = value
@@ -45,7 +75,8 @@ class BaseService(Generic[T]):
         self, 
         query: str, 
         params: tuple = (), 
-        single_row: bool = False
+        single_row: bool = False,
+        is_detection: bool = False
     ) -> Optional[Dict[str, Any]]:
         """
         Execute a database query and return formatted results.
@@ -54,6 +85,7 @@ class BaseService(Generic[T]):
             query: SQL query string
             params: Query parameters
             single_row: Whether to return a single row or all results
+            is_detection: Whether this query returns detection records
             
         Returns:
             Formatted query results
@@ -65,10 +97,10 @@ class BaseService(Generic[T]):
                 
                 if single_row:
                     row = cursor.fetchone()
-                    return self.format_response(dict(row)) if row else None
+                    return self.format_response(dict(row), is_detection) if row else None
                 
                 rows = cursor.fetchall()
-                return [self.format_response(dict(row)) for row in rows]
+                return [self.format_response(dict(row), is_detection) for row in rows]
                 
         except sqlite3.Error as e:
             # Log the error and re-raise with a clear message
