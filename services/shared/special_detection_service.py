@@ -4,13 +4,15 @@ from .base_service import BaseService
 class SpecialDetectionService(BaseService):
     """Service for handling special bird detections with standardized responses."""
 
+    VALID_HIGHLIGHT_TYPES = {'rare', 'quality', 'behavior'}
+
     def _base_special_detection_query(self) -> str:
         """Base query for getting special detection data with consistent field names."""
         return """
             SELECT 
                 d.id,
                 datetime(d.detection_time, 'localtime') as detection_time,
-                d.display_name,
+                d.display_name as scientific_name,  -- Standardize field name
                 d.score,
                 d.frigate_event,
                 b.common_name,
@@ -18,15 +20,22 @@ class SpecialDetectionService(BaseService):
                 COALESCE(iq.composition_score, 0) as composition_score,
                 iq.behavior_tags,
                 COALESCE(iq.clarity_score * 0.6 + iq.composition_score * 0.4, 0) as visibility_score,
-                d.enhancement_status,
+                COALESCE(d.enhancement_status, 'pending') as enhancement_status,
                 COALESCE(iq.quality_improvement, 0) as quality_improvement,
                 iq.enhanced_path,
                 iq.enhanced_thumbnail_path,
                 1 as is_special,
-                sd.highlight_type,
+                CASE 
+                    WHEN sd.highlight_type NOT IN ('rare', 'quality', 'behavior') 
+                    THEN 'quality' 
+                    ELSE sd.highlight_type 
+                END as highlight_type,
                 sd.score as special_score,
-                sd.community_votes,
-                sd.featured_status
+                COALESCE(sd.community_votes, 0) as community_votes,
+                COALESCE(sd.featured_status, 0) as featured_status,
+                d.category_name,
+                d.camera_name,
+                d.detection_index
             FROM special_detections sd
             JOIN detections d ON sd.detection_id = d.id
             JOIN birdnames b ON d.display_name = b.scientific_name
@@ -48,7 +57,7 @@ class SpecialDetectionService(BaseService):
             ORDER BY sd.created_at DESC
             LIMIT ?
         """
-        return self.execute_query(query, (limit,))
+        return self.execute_query(query, (limit,), is_detection=True)
 
     def get_special_detections_by_type(self, highlight_type: str) -> List[Dict[str, Any]]:
         """
@@ -60,8 +69,8 @@ class SpecialDetectionService(BaseService):
         Returns:
             List of special detections of the specified type
         """
-        if highlight_type not in ['rare', 'quality', 'behavior']:
-            raise ValueError("Invalid highlight type")
+        if highlight_type not in self.VALID_HIGHLIGHT_TYPES:
+            raise ValueError(f"Invalid highlight type. Must be one of: {', '.join(self.VALID_HIGHLIGHT_TYPES)}")
 
         query = f"""
             {self._base_special_detection_query()}
@@ -69,7 +78,7 @@ class SpecialDetectionService(BaseService):
             ORDER BY sd.score DESC
             LIMIT 50
         """
-        return self.execute_query(query, (highlight_type,))
+        return self.execute_query(query, (highlight_type,), is_detection=True)
 
     def update_community_votes(self, special_detection_id: int, increment: bool) -> None:
         """
@@ -81,7 +90,7 @@ class SpecialDetectionService(BaseService):
         """
         query = """
             UPDATE special_detections 
-            SET community_votes = community_votes + ?
+            SET community_votes = COALESCE(community_votes, 0) + ?
             WHERE id = ?
         """
         self.execute_write_query(query, (1 if increment else -1, special_detection_id))
