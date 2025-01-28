@@ -36,7 +36,9 @@ SELECT
     enhanced_path,
     enhanced_thumbnail_path,
     enhancement_status,
-    quality_improvement
+    quality_improvement,
+    visibility_score,
+    created_at
 FROM image_quality;
 
 -- Drop original table
@@ -66,7 +68,9 @@ SELECT
     enhanced_path,
     enhanced_thumbnail_path,
     enhancement_status,
-    quality_improvement
+    quality_improvement,
+    visibility_score,
+    created_at
 FROM image_quality_backup;
 
 -- Drop temporary table
