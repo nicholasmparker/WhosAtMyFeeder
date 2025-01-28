@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS rarity_scores (
 CREATE TABLE IF NOT EXISTS special_detections (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     detection_id INTEGER UNIQUE,
-    highlight_type TEXT CHECK(highlight_type IN ("rare", "quality", "behavior")),
+    highlight_type TEXT CHECK(highlight_type IN ('rare', 'quality', 'behavior')),
     score REAL,  -- Combined score determining significance
     community_votes INTEGER DEFAULT 0,
     featured_status BOOLEAN DEFAULT 0,
@@ -96,7 +96,6 @@ CREATE TABLE IF NOT EXISTS detection_weather (
     FOREIGN KEY (weather_id) REFERENCES weather_conditions(id)
 );
 
--- Indexes for performance
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_detections_time ON detections(detection_time);
 CREATE INDEX IF NOT EXISTS idx_detections_species ON detections(display_name);

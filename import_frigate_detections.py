@@ -98,9 +98,9 @@ def insert_detection(cursor, event, quality_data):
             quality_data['quality_scores']['clarity'],
             quality_data['quality_scores']['composition'],
             quality_data['quality_scores']['overall'],
-            quality_data.get('enhanced_path') if quality_data.get('enhanced') else None,
-            quality_data.get('enhanced_thumbnail_path') if quality_data.get('enhanced') else None,
-            'completed' if quality_data.get('enhanced') else None,
+            quality_data.get('enhanced_path'),
+            quality_data.get('enhanced_thumbnail_path'),
+            'completed' if quality_data.get('enhanced') else 'pending',  # Set pending as default status
             (quality_data.get('enhanced_quality_scores', {}).get('overall', 0) - 
              quality_data['quality_scores']['overall']) if quality_data.get('enhanced') else None
         ))

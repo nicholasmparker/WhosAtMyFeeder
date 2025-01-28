@@ -21,7 +21,7 @@ def get_common_name(scientific_name):
     return db.execute_read(do_query)
 
 def _base_detection_query():
-    """Base query for getting detection data with quality metrics."""
+    """Base query for getting detection data with quality metrics and special detections."""
     return """
         SELECT 
             d.id,
@@ -39,10 +39,16 @@ def _base_detection_query():
             iq.enhancement_status,
             COALESCE(iq.quality_improvement, 0) as quality_improvement,
             iq.enhanced_path,
-            iq.enhanced_thumbnail_path
+            iq.enhanced_thumbnail_path,
+            CASE WHEN sd.id IS NOT NULL THEN 1 ELSE 0 END as is_special,
+            sd.highlight_type,
+            sd.score as special_score,
+            sd.community_votes,
+            sd.featured_status
         FROM detections d
         LEFT JOIN image_quality iq ON d.id = iq.detection_id
         LEFT JOIN birdnames b ON d.display_name = b.scientific_name
+        LEFT JOIN special_detections sd ON d.id = sd.detection_id
     """
 
 def _format_detection(record):
@@ -64,18 +70,38 @@ def _format_detection(record):
         'quality_improvement': record[13],
         'enhanced_path': record[14],
         'enhanced_thumbnail_path': record[15],
-        'scientific_name': record[2]  # display_name is the scientific name
+        'scientific_name': record[2],  # display_name is the scientific name
+        'is_special': bool(record[16]),
+        'highlight_type': record[17],
+        'special_score': record[18],
+        'community_votes': record[19],
+        'featured_status': record[20]
     }
 
 def recent_detections(num_detections):
     """Get most recent detections with quality metrics."""
     def do_query(session):
+        # First try to get enhanced images
         query = f"""
             {_base_detection_query()}
+            WHERE iq.enhancement_status = 'completed'
             ORDER BY d.detection_time DESC
             LIMIT :limit
         """
         results = session.execute(text(query), {"limit": num_detections}).fetchall()
+        
+        # If we don't have enough enhanced images, get more recent detections
+        if len(results) < num_detections:
+            remaining = num_detections - len(results)
+            query = f"""
+                {_base_detection_query()}
+                WHERE d.id NOT IN (SELECT detection_id FROM image_quality WHERE enhancement_status = 'completed')
+                ORDER BY d.detection_time DESC
+                LIMIT :limit
+            """
+            more_results = session.execute(text(query), {"limit": remaining}).fetchall()
+            results.extend(more_results)
+        
         return [_format_detection(result) for result in results]
     
     return db.execute_read(do_query)

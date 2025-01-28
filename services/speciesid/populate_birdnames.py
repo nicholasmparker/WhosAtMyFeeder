@@ -22,11 +22,13 @@ BIRDS = [
     ('Sitta carolinensis', 'White-breasted Nuthatch'),
     ('Haemorhous mexicanus', 'House Finch'),
     ('Spinus tristis', 'American Goldfinch'),
+    ('Spinus psaltria', 'Lesser Goldfinch'),  # Added Lesser Goldfinch
     ('Zenaida macroura', 'Mourning Dove'),
     ('Baeolophus atricristatus', 'Black-crested Titmouse'),  # Texas subspecies
     ('Melanerpes carolinus', 'Red-bellied Woodpecker'),
     ('Dryobates pubescens', 'Downy Woodpecker'),
     ('Thryothorus ludovicianus', 'Carolina Wren'),
+    ('Thryomanes bewickii', 'Bewick\'s Wren'),  # Added Bewick's Wren
     ('Mimus polyglottos', 'Northern Mockingbird'),
     ('Toxostoma rufum', 'Brown Thrasher'),
     ('Melozone fusca', 'Canyon Towhee'),
