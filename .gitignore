@@ -69,3 +69,6 @@ config/config.yml  # Ignore local config
 .aider*
 resources/
 config/config.yml
+frontend/.vite/
+frontend/tsconfig.app.tsbuildinfo
+frontend/tsconfig.node.tsbuildinfo
