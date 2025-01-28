@@ -32,6 +32,7 @@ def recent_detections(num_detections):
                 d.category_name,
                 d.camera_name,
                 d.detection_index,
+                iq.visibility_score as quality_score,
                 iq.clarity_score,
                 iq.composition_score,
                 iq.enhancement_status,
@@ -57,9 +58,10 @@ def recent_detections(num_detections):
                 'camera_name': result[6],
                 'detection_index': result[7],
                 'quality_score': result[8] if result[8] is not None else None,
-                'composition_score': result[9] if result[9] is not None else None,
-                'enhancement_status': result[10],
-                'quality_improvement': result[11] if result[11] is not None else None,
+                'clarity_score': result[9] if result[9] is not None else None,
+                'composition_score': result[10] if result[10] is not None else None,
+                'enhancement_status': result[11],
+                'quality_improvement': result[12] if result[12] is not None else None,
                 'common_name': result[12] or get_common_name(result[2]),
                 'scientific_name': result[2]  # display_name is the scientific name
             }

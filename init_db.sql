@@ -31,6 +31,10 @@ CREATE TABLE IF NOT EXISTS image_quality (
     clarity_score REAL,        -- 0-1 score for image clarity/focus
     composition_score REAL,    -- 0-1 score for composition/framing
     behavior_tags TEXT,        -- JSON array of behavior tags
+    enhanced_path TEXT,
+    enhanced_thumbnail_path TEXT,
+    enhancement_status TEXT CHECK(enhancement_status IN ("pending", "completed", "failed")),
+    quality_improvement REAL,
     visibility_score REAL,     -- 0-1 score for bird visibility
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (detection_id) REFERENCES detections(id)
@@ -39,7 +43,7 @@ CREATE TABLE IF NOT EXISTS image_quality (
 CREATE TABLE IF NOT EXISTS special_detections (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     detection_id INTEGER UNIQUE,
-    highlight_type TEXT CHECK(highlight_type IN ('rare', 'quality', 'behavior')),
+    highlight_type TEXT CHECK(highlight_type IN ("rare", "quality", "behavior")),
     score REAL,  -- Combined score determining significance
     community_votes INTEGER DEFAULT 0,
     featured_status BOOLEAN DEFAULT 0,
@@ -96,3 +100,6 @@ CREATE INDEX IF NOT EXISTS idx_special_type ON special_detections(highlight_type
 CREATE INDEX IF NOT EXISTS idx_weather_time ON weather_conditions(timestamp);
 CREATE INDEX IF NOT EXISTS idx_vision_cache_time ON vision_analysis_cache(created_at);
 CREATE INDEX IF NOT EXISTS idx_vision_costs_date ON vision_api_costs(date);
+CREATE INDEX IF NOT EXISTS idx_image_quality_detection_id ON image_quality(detection_id);
+CREATE INDEX IF NOT EXISTS idx_image_quality_clarity_score ON image_quality(clarity_score);
+CREATE INDEX IF NOT EXISTS idx_image_quality_visibility_score ON image_quality(visibility_score);
