@@ -19,6 +19,7 @@ services:
       - ./models:/app/models:ro
       - ./input:/app/input
       - ./output:/app/output
+      - ./screenshot.jpg:/app/screenshot.jpg:ro
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - PYTHONPATH=/app/services/shared:/app/services

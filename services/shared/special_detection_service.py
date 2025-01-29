@@ -15,12 +15,12 @@ class SpecialDetectionService:
             # Get total detection counts for each species
             species_counts = session.execute(text("""
                 SELECT 
-                    display_name,
+                    scientific_name,
                     COUNT(*) as visit_count,
                     MAX(detection_time) as last_seen
                 FROM detections
-                WHERE display_name IS NOT NULL
-                GROUP BY display_name
+                WHERE scientific_name IS NOT NULL
+                GROUP BY scientific_name
             """)).fetchall()
             
             # Calculate the maximum count for normalization
@@ -37,7 +37,7 @@ class SpecialDetectionService:
                     text("""
                         SELECT COUNT(*) as recent_count
                         FROM detections
-                        WHERE display_name = :name AND detection_time >= :date
+                        WHERE scientific_name = :name AND detection_time >= :date
                     """),
                     {"name": species[0], "date": three_months_ago}
                 ).scalar()
@@ -48,7 +48,7 @@ class SpecialDetectionService:
                 session.execute(
                     text("""
                         INSERT OR REPLACE INTO rarity_scores 
-                        (species_id, frequency_score, seasonal_score, last_seen, total_visits)
+                        (scientific_name, frequency_score, seasonal_score, last_seen, total_visits)
                         VALUES (:species, :freq, :seasonal, :last_seen, :visits)
                     """),
                     {
@@ -146,7 +146,7 @@ class SpecialDetectionService:
                     SELECT 
                         d.id,
                         d.detection_time,
-                        d.display_name,
+                        d.scientific_name,
                         CAST(d.score as FLOAT) as score,
                         d.frigate_event,
                         d.category_name,
@@ -159,7 +159,7 @@ class SpecialDetectionService:
                         iq.composition_score,
                         iq.visibility_score
                     FROM detections d
-                    LEFT JOIN rarity_scores r ON d.display_name = r.species_id
+                        LEFT JOIN rarity_scores r ON d.scientific_name = r.scientific_name
                     LEFT JOIN image_quality iq ON d.id = iq.detection_id
                     WHERE d.id = :id
                 """),
@@ -172,7 +172,7 @@ class SpecialDetectionService:
 
             # Convert row to dictionary for named column access
             detection = dict(zip([
-                'id', 'detection_time', 'display_name', 'score', 'frigate_event',
+                'id', 'detection_time', 'scientific_name', 'score', 'frigate_event',
                 'category_name', 'camera_name', 'detection_index', 'created_at',
                 'frequency_score', 'seasonal_score', 'clarity_score',
                 'composition_score', 'visibility_score'
@@ -215,7 +215,7 @@ class SpecialDetectionService:
                         SELECT 
                             sd.*,
                             d.detection_time,
-                            d.display_name,
+                            d.scientific_name,
                             d.score as detection_score,
                             d.frigate_event,
                             b.common_name,
@@ -227,7 +227,7 @@ class SpecialDetectionService:
                             datetime(sd.created_at, 'localtime') as local_created_at
                         FROM special_detections sd
                         JOIN detections d ON sd.detection_id = d.id
-                        JOIN birdnames b ON d.display_name = b.scientific_name
+                        JOIN birdnames b ON d.scientific_name = b.scientific_name
                         LEFT JOIN image_quality iq ON d.id = iq.detection_id
                     )
                     SELECT *
@@ -241,7 +241,7 @@ class SpecialDetectionService:
             
             # Convert SQLAlchemy Row objects to dictionaries
             columns = ['id', 'detection_id', 'highlight_type', 'score', 'community_votes', 
-                      'featured_status', 'created_at', 'detection_time', 'display_name', 
+                      'featured_status', 'created_at', 'detection_time', 'scientific_name', 
                       'detection_score', 'frigate_event', 'common_name', 'clarity_score',
                       'composition_score', 'behavior_tags', 'enhancement_status', 'quality_improvement',
                       'local_created_at']

@@ -46,9 +46,12 @@ COPY services/webui /app/services/webui
 COPY init_db.sql /app/
 COPY services/speciesid/populate_birdnames.py /app/
 COPY reprocess_quality.py /app/
-COPY import_frigate_detections.py /app/
+COPY services/speciesid/import_frigate_detections.py /app/
 
 # Copy and set entrypoint
+# Copy test image
+COPY screenshot.jpg /app/screenshot.jpg
+
 COPY services/webui/entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
 WORKDIR /app
